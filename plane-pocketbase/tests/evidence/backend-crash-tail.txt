@@ -1,0 +1,40 @@
+[0.00ms] CREATE UNIQUE INDEX `idx_changelogs_uuid` ON `changelogs` (`uuid`)
+[0.00ms] CREATE INDEX `idx_changelogs_deleted_at` ON `changelogs` (`deleted_at`)
+[0.00ms] PRAGMA optimize
+[0.00ms] SELECT `_collections`.* FROM `_collections` WHERE `type`='view' ORDER BY `rowid` ASC
+[0.00ms] SELECT `_collections`.* FROM `_collections` ORDER BY `rowid` ASC
+[0.00ms] INSERT INTO `_migrations` (`applied`, `file`) VALUES (1790962003640794, '1759000012_init_instance_models.go')
+[0.00ms] SELECT (1) FROM `_migrations` WHERE `file`='1763020353_update_default_auth_alert_templates.go' LIMIT 1
+[0.00ms] SELECT (1) FROM `_migrations` WHERE `file`='1778828400_normalize_indexes.go' LIMIT 1
+[3.00ms] SELECT `instances`.* FROM `instances` WHERE ((`instances`.`id` IS NOT '' AND `instances`.`id` IS NOT NULL)) LIMIT 1
+[0.00ms] SELECT `_collections`.* FROM `_collections` WHERE `id`='instances' OR LOWER(`name`)='instances' LIMIT 1
+[0.00ms] INSERT INTO `instances` (`created_at`, `created_by`, `current_version`, `deleted_at`, `domain`, `edition`, `id`, `instance_id`, `instance_name`, `is_current_version_deprecated`, `is_setup_done`, `is_signup_screen_visited`, `is_support_required`, `is_telemetry_enabled`, `is_test`, `is_verified`, `last_checked_at`, `latest_version`, `namespace`, `updated_at`, `updated_by`, `uuid`, `whitelist_emails`) VALUES ('2026-10-02 17:26:46.029Z', '', '0.1.0', '', '', 'PLANE_COMMUNITY', 'oqx970zxqsbrrpj', 'f0025c30-ca41-4033-b668-17acab1663d1', 'Instance', false, false, false, true, true, false, false, '2026-10-02 17:26:46.029Z', '', '', '', '', 'b8c78403-afd1-4bb2-a487-9ab7e1dd147e', '')
+2026/10/03 01:26:46 Server started at http://127.0.0.1:8000
+├─ REST API:  http://127.0.0.1:8000/api/
+└─ Dashboard: http://127.0.0.1:8000/_/
+[0.00ms] SELECT count(*) FROM `_superusers` WHERE NOT (`email`='__pbinstaller@example.com')
+[0.00ms] SELECT `_superusers`.* FROM `_superusers` WHERE `email`='__pbinstaller@example.com' LIMIT 1
+[0.00ms] SELECT `_collections`.* FROM `_collections` WHERE `type`='auth' ORDER BY `rowid` ASC
+[0.00ms] SELECT `users`.* FROM `users` WHERE `users`.`id`='5hyyweggclxbtua' LIMIT 1
+[0.00ms] INSERT INTO `_superusers` (`created`, `email`, `emailVisibility`, `id`, `password`, `tokenKey`, `updated`, `verified`) VALUES ('2026-10-02 17:26:46.096Z', '__pbinstaller@example.com', false, '5hyyweggclxbtua', '$2a$10$fIsqwEJ8W24p9QpgJvFew.4TIvHbXjtkl3cRTIxga1uKXGpExlJ6e', 'c93jDVMQVBJ82Hva2PHgIw8PqOv8PhmaPpLMtGgpbWoe5Ratob', '2026-10-02 17:26:46.096Z', true)
+
+(!) Launch the URL below in the browser if it hasn't been open already to create your first superuser account:
+http://127.0.0.1:8000/_/#/pbinstall/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2xsZWN0aW9uSWQiOiJwYmNfMzE0MjYzNTgyMyIsImV4cCI6MTc5MDk2MzgwNiwiaWQiOiI1aHl5d2VnZ2NseGJ0dWEiLCJyZWZyZXNoYWJsZSI6ZmFsc2UsInR5cGUiOiJhdXRoIn0.8j18i741IGMHPfzfLNaeHsJ1dFyfKWbWi0ZRp2FAuc0
+(you can also create your first superuser by running: C:\Users\cao\Desktop\asl-work\plane_pocket\plane-pocketbase\.fe.exe superuser upsert EMAIL PASS)
+
+[1.00ms] SELECT `instances`.* FROM `instances` WHERE ((`instances`.`id` IS NOT '' AND `instances`.`id` IS NOT NULL)) LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'ENABLE_SIGNUP' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'DISABLE_WORKSPACE_CREATION' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'IS_GOOGLE_ENABLED' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'IS_GITHUB_ENABLED' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'IS_GITLAB_ENABLED' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'IS_GITEA_ENABLED' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'ENABLE_MAGIC_LINK_LOGIN' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'ENABLE_EMAIL_PASSWORD' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'GITHUB_APP_NAME' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'SLACK_CLIENT_ID' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'UNSPLASH_ACCESS_KEY' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'LLM_API_KEY' LIMIT 1
+[0.00ms] SELECT `instance_configurations`.* FROM `instance_configurations` WHERE `instance_configurations`.`key` = 'EMAIL_HOST' LIMIT 1
+[0.00ms] SELECT count(*) FROM `workspaces`
+INFO GET /api/instances/

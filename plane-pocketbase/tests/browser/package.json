@@ -1,0 +1,6 @@
+{
+  "name": "plane-pb-browser-tests",
+  "private": true,
+  "type": "module",
+  "dependencies": { "playwright-core": "^1.56.0" }
+}

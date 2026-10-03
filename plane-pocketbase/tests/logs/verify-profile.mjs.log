@@ -1,0 +1,115 @@
+== session ==
+  /api/users/me/ -> 200  id=0269ed2c-7f2e-41eb-9c68-5bc20017d228
+  PASS  session established  — status=200
+  /api/workspaces/hrms/projects/ -> 200  first id=5273f83c-f839-4159-8faa-eee59958a91e
+
+== user-profile endpoints ==
+  user-profile -> 200 {"project_data":[{"created_issues":1,"assigned_issues":0,"completed_issues":0,"pending_issues":0,"id":"5273f83c-f839-4159-8faa-eee59958a91e","logo_props":{"emoji":{"value":"127891"},"in_use":"emoji"}}
+  PASS  user-profile 200  — status=200
+  PASS  user-profile.project_data is an array  — got [{"created_issues":1,"assigned_issues":0,"completed_issues":0,"pending_issues":0
+  PASS  user-profile.user_data present  — {"first_name":"Wilber","last_name":"Wright","avatar_url":null,"cover_image_url":null,"date_joined":"2026-10-03T07:15:53.
+  PASS  user-profile.user_data has the Django keys
+  user-stats -> 200 {"priority_distribution":[],"created_issues":1,"pending_issues":0,"present_cycles":[],"upcoming_cycles":[],"assigned_issues":0,"completed_issues":0,"subscribed_issues":0,"state_distribution":[]}
+  PASS  user-stats 200  — status=200
+  PASS  user-stats.state_distribution is an array  — []
+  PASS  user-stats.priority_distribution is an array
+  PASS  user-stats numeric counters  — {"created":1,"assigned":0,"completed":0,"pending":0}
+  PASS  user-stats.present_cycles is an array
+  PASS  user-stats.upcoming_cycles is an array
+  user-activity -> 200 {"grouped_by":null,"sub_grouped_by":null,"total_count":0,"next_cursor":"10:1:0","prev_cursor":"10:-1:1","next_page_results":false,"prev_page_results":false,"count":0,"total_pages":0,"total_results":0,
+  PASS  user-activity 200  — status=200
+  PASS  user-activity.results is an array
+  PASS  user-activity cursor envelope  — count=0 total=0
+
+== workspace boot surface ==
+  workspace-members/me -> 200 {"created_at":"2026-10-03T07:16:30.717000Z","role":20,"default_props":{"filters":{"target_date":null,"priority":null,"state":null,"assignees":null,"created_by":
+  PASS  workspace-members/me 200  — status=200
+  PASS  workspace-members/me carries the membership fields  — {"role":20,"has_view_props":true,"draft_issue_count":0}
+  states -> 200 [{"project_id":"5273f83c-f839-4159-8faa-eee59958a91e","name":"Backlog","default":true,"description":"","id":"7b1203c5-8cb6-4f32-b88e-ac4367e8cf22","workspace_id
+  PASS  workspace states 200 + array  — status=200
+  PASS  workspace states carry a computed `order` and no Triage  — ["backlog:1","unstarted:1","started:1","completed:1","cancelled:1"]
+  user-properties -> 200 {"rich_filters":{},"navigation_project_limit":10,"updated_at":null,"created_by":"0269ed2c-7f2e-41eb-9c68-5bc20017d228","id":"6e40b5c4-b081-4dd9-a692-90581c0eaae
+  PASS  user-properties 200  — status=200
+  PASS  user-properties carries the Django defaults  — {"filters":true,"display_filters":true,"navigation_project_limit":10}
+  sidebar-preferences -> 200 {"archives":{"is_pinned":false,"sort_order":115535},"stickies":{"is_pinned":true,"sort_order":125535},"views":{"sort_order":65535,"is_pinned":false},"active_cycles":{"is_pinned":false,"sort_order":755
+  PASS  sidebar-preferences 200  — status=200
+  PASS  sidebar-preferences is a map with all seven seeded keys  — archives,stickies,views,active_cycles,analytics,drafts,your_work
+  PASS  sidebar-preferences pins drafts / your_work / stickies  — {"drafts":true,"your_work":true,"stickies":true,"views":false}
+  home-preferences -> 200 [{"key":"quick_links","is_enabled":true,"config":{},"sort_order":999},{"key":"recents","is_enabled":true,"config":{},"sort_order":998},{"key":"my_stickies","is_enabled":true,"config":{},"sort_order":9
+  PASS  home-preferences 200 + array  — status=200 isArray=true
+  PASS  home-preferences seeds quick_links / recents / my_stickies  — ["quick_links:999","recents:998","my_stickies:997"]
+  PASS  home-preferences excludes the tutorial widgets  — ["quick_links","recents","my_stickies"]
+  PATCH home-preferences/recents -> 200 {"sort_order":998,"key":"recents","is_enabled":false}
+  PASS  PATCH home-preferences/{key} returns key + is_enabled + sort_order (no config)  — {"sort_order":998,"key":"recents","is_enabled":false}
+  PASS  home-preferences PATCH is reversible  — {"key":"recents","is_enabled":true,"sort_order":998}
+
+== unmatched sub-paths must 404 (was: 200 + wrong object) ==
+  PASS  404 /api/workspaces/hrms/definitely-not-a-route/  — status=404 body={"data":{},"message":"The requested resource wasn't found.",
+  PASS  404 /api/workspaces/hrms/user-profile/  — status=404 body={"data":{},"message":"The requested resource wasn't found.",
+  PASS  404 /api/workspaces/hrms/user-stats/  — status=404 body={"data":{},"message":"The requested resource wasn't found.",
+  PASS  404 /api/workspaces/hrms/projects/5273f83c-f839-4159-8faa-eee59958a91e/definitely-not-a-route/  — status=404 body={"data":{},"message":"The requested resource wasn't found.",
+  PASS  404 /api/workspaces/hrms/projects/5273f83c-f839-4159-8faa-eee59958a91e/user-profile/  — status=404 body={"data":{},"message":"The requested resource wasn't found.",
+
+== the routes that must keep working ==
+  PASS  200 /api/workspaces/hrms/  — status=200
+  PASS  200 /api/workspaces/hrms/members/  — status=200
+  PASS  200 /api/workspaces/hrms/projects/  — status=200
+  PASS  200 /api/workspaces/hrms/projects/5273f83c-f839-4159-8faa-eee59958a91e/  — status=200
+  PASS  200 /api/workspaces/  — status=200
+  PASS  200 /api/workspaces/hrms/states/  — status=200
+  PASS  200 /api/workspaces/hrms/user-properties/  — status=200
+  PASS  200 /api/workspaces/hrms/sidebar-preferences/  — status=200
+  PASS  200 /api/workspaces/hrms/workspace-members/me/  — status=200
+
+== profile page renders ==
+  PASS  no runtime error on the profile page  — H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Community Projects New work item Home Drafts Your work Stickies 
+  PASS  profile page shows the display name "Wilber"  — H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Community Projects New work item Home Drafts Your work Stickies 
+  PASS  profile sidebar lists the project the user is a member of  — {"project_data":[null],"shape_ok":true}
+  [shot] verify-profile-page.png  (个人资料页 — 修复后)
+  PASS  assigned-issues tab renders  — H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Community Projects New work item Home Drafts Your work Stickies 
+  [shot] verify-profile-assigned.png  (个人资料页 — assigned 标签)
+
+===== verify-profile  (2026-10-03T07:36:35.219Z) =====
+-- FAILED REQUESTS --
+404  GET    /api/workspaces/hrms/definitely-not-a-route/
+404  GET    /api/workspaces/hrms/user-profile/
+404  GET    /api/workspaces/hrms/user-stats/
+404  GET    /api/workspaces/hrms/projects/5273f83c-f839-4159-8faa-eee59958a91e/definitely-not-a-route/
+404  GET    /api/workspaces/hrms/projects/5273f83c-f839-4159-8faa-eee59958a91e/user-profile/
+404  GET    /api/workspaces/hrms/user-issues/0269ed2c-7f2e-41eb-9c68-5bc20017d228/?order_by=sort_order&sub_issue=false&filters=%7B%7D&layout=list&cursor=100:0:0&per_page=100&assignees=0269ed2c-7f2e-41eb-9c68-5bc20017d228
+
+-- MUTATIONS --
+200  PATCH  /api/workspaces/hrms/home-preferences/recents/
+200  PATCH  /api/workspaces/hrms/home-preferences/recents/
+
+-- API READS (deduped, query strings kept) --
+200  GET    /api/users/me/
+200  GET    /api/workspaces/hrms/projects/
+200  GET    /api/workspaces/hrms/user-profile/0269ed2c-7f2e-41eb-9c68-5bc20017d228/
+200  GET    /api/workspaces/hrms/user-stats/0269ed2c-7f2e-41eb-9c68-5bc20017d228/
+200  GET    /api/workspaces/hrms/user-activity/0269ed2c-7f2e-41eb-9c68-5bc20017d228/?per_page=10
+200  GET    /api/workspaces/hrms/workspace-members/me/
+200  GET    /api/workspaces/hrms/states/
+200  GET    /api/workspaces/hrms/user-properties/
+200  GET    /api/workspaces/hrms/sidebar-preferences/
+200  GET    /api/workspaces/hrms/home-preferences/
+404  GET    /api/workspaces/hrms/definitely-not-a-route/
+404  GET    /api/workspaces/hrms/user-profile/
+404  GET    /api/workspaces/hrms/user-stats/
+404  GET    /api/workspaces/hrms/projects/5273f83c-f839-4159-8faa-eee59958a91e/definitely-not-a-route/
+404  GET    /api/workspaces/hrms/projects/5273f83c-f839-4159-8faa-eee59958a91e/user-profile/
+200  GET    /api/workspaces/hrms/
+200  GET    /api/workspaces/hrms/members/
+200  GET    /api/workspaces/hrms/projects/5273f83c-f839-4159-8faa-eee59958a91e/
+200  GET    /api/workspaces/
+200  GET    /api/instances/
+200  GET    /api/users/me/profile/
+200  GET    /api/users/me/settings/
+200  GET    /api/users/me/workspaces/
+200  GET    /api/users/me/workspaces/hrms/project-roles/
+200  GET    /api/workspaces/hrms/users/notifications/unread/
+200  GET    /api/workspaces/hrms/user-favorites/?all=true
+404  GET    /api/workspaces/hrms/user-issues/0269ed2c-7f2e-41eb-9c68-5bc20017d228/?order_by=sort_order&sub_issue=false&filters=%7B%7D&layout=list&cursor=100:0:0&per_page=100&assignees=0269ed2c-7f2e-41eb-9c68-5bc20017d228
+
+
+RESULT: ALL CHECKS PASSED

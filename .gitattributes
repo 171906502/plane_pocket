@@ -1,0 +1,49 @@
+# ============================================================================
+# 顺序很重要：.gitattributes 中「最后匹配的规则生效」。
+# 因此默认规则写在最前面，例外写在后面。`*` 会跨越 `/` 匹配，务必注意顺序。
+# ============================================================================
+
+# 默认：文本文件在索引中统一存为 LF
+* text=auto eol=lf
+
+# ----------------------------------------------------------------------------
+# 第三方只读依赖：禁止 Git 做任何行尾转换（-text = 不做 CRLF 归一化）
+#
+# 本机全局 core.autocrlf=true。若按上面的默认规则处理，一次 git checkout
+# 就会把 plane-preview 的 CRLF 文件改写成 LF —— pnpm-lock.yaml 有 14830 个 CR，
+# apps/web/package.json 有 87 个 —— 直接破坏「前端零改动 / 字节不变」这个
+# 项目的核心承诺。用 -text 彻底锁死：索引存原始字节，checkout 还原原始字节。
+#
+# 代价：这两个树内部的 git diff 会显示为二进制。但它们本就是只读参考代码，
+# 不需要逐行 diff，用「字节不变」换「可 diff」是划算的。
+# ----------------------------------------------------------------------------
+plane-preview/**      -text
+pocketbase-master/**  -text
+
+# ----------------------------------------------------------------------------
+# 二进制资源（binary = -diff -merge -text）
+# ----------------------------------------------------------------------------
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.webp   binary
+*.ico    binary
+*.bmp    binary
+*.svg    binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.eot    binary
+*.otf    binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+*.tgz    binary
+*.7z     binary
+*.wasm   binary
+*.db     binary
+*.exe    binary
+*.dll    binary
+*.so     binary
+*.dylib  binary

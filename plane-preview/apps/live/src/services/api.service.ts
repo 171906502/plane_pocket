@@ -1,0 +1,84 @@
+/**
+ * Copyright (c) 2023-present Plane Software, Inc. and contributors
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * See the LICENSE file for details.
+ */
+
+import type { AxiosInstance } from "axios";
+import { create } from "axios";
+import { normalizeAPIRequestURL } from "@plane/services";
+import { env } from "@/env";
+import { AppError } from "@/lib/errors";
+
+export abstract class APIService {
+  protected baseURL: string;
+  private axiosInstance: AxiosInstance;
+  private header: Record<string, string> = {};
+
+  constructor(baseURL?: string) {
+    this.baseURL = baseURL || env.API_BASE_URL;
+    this.axiosInstance = create({
+      baseURL: this.baseURL,
+      withCredentials: true,
+      timeout: 20000,
+    });
+    this.setupInterceptors();
+  }
+
+  private setupInterceptors() {
+    this.axiosInstance.interceptors.request.use((config) => {
+      try {
+        if (config.url) {
+          config.url = normalizeAPIRequestURL(config.url, this.baseURL);
+        }
+      } catch (error) {
+        // Never block a request because of slash normalization — fall back to the
+        // original URL and let the call proceed.
+        console.warn("[APIService] Failed to normalize trailing slash:", config.url, error);
+      }
+      return config;
+    });
+
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        return Promise.reject(new AppError(error));
+      }
+    );
+  }
+
+  setHeader(key: string, value: string) {
+    this.header[key] = value;
+  }
+
+  getHeader() {
+    return this.header;
+  }
+
+  get(url: string, params = {}, config = {}) {
+    return this.axiosInstance.get(url, {
+      ...params,
+      ...config,
+    });
+  }
+
+  post(url: string, data = {}, config = {}) {
+    return this.axiosInstance.post(url, data, config);
+  }
+
+  put(url: string, data = {}, config = {}) {
+    return this.axiosInstance.put(url, data, config);
+  }
+
+  patch(url: string, data = {}, config = {}) {
+    return this.axiosInstance.patch(url, data, config);
+  }
+
+  delete(url: string, data?: Record<string, unknown> | null | string, config = {}) {
+    return this.axiosInstance.delete(url, { data, ...config });
+  }
+
+  request(config = {}) {
+    return this.axiosInstance(config);
+  }
+}

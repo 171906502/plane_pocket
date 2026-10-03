@@ -1,0 +1,40 @@
+# ============================================================================
+# plane_pocket —— 合并仓库的根级忽略规则
+#
+# 子目录自带的 .gitignore 在 Git 中会自动生效，且优先级高于本文件：
+#   plane-pocketbase/.gitignore   -> .fe-run*、*.db、*.exe、tests/browser/profile*
+#   plane-preview/.gitignore      -> node_modules、dist、build、.react-router、
+#                                    .turbo、.env、.next、tsconfig.tsbuildinfo
+#   plane-preview/apps/{web,space}/.gitignore
+#   pocketbase-master/.gitignore  -> .builds、coverage.out
+#
+# 上游规则已经覆盖了绝大部分，所以这里只放「上游不知道」的东西 + 兜底安全网。
+# ============================================================================
+
+# 本地临时工作区：cookie / csrf / 本地服务日志 / 旧仓库归档
+_scratch/
+
+# 兜底安全网：即使子目录规则被误改，也不让依赖装进索引
+**/node_modules/
+**/.pnpm-store/
+**/*.tsbuildinfo
+
+# 运行时数据库与快照
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# 编译产物
+*.exe
+
+# ----------------------------------------------------------------------------
+# ⚠ 绝对不要在这里加 `**/dist/` 或 `**/build/` 这类通配规则！
+#
+# pocketbase-master/ui/embed.go:11 是 `//go:embed all:dist`，它把预构建的
+# 管理界面（ui/dist）编进二进制。一旦 ui/dist 被忽略，go build 会以
+# "pattern all:dist: no matching files found" 直接失败。
+#
+# 前端产物（plane-preview/packages/*/dist、apps/live/dist）由
+# plane-preview/.gitignore 中作用域受限的 `dist/` 自行处理。
+# ----------------------------------------------------------------------------

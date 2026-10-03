@@ -1,0 +1,151 @@
+
+===== A1-admin-signup =====
+url=http://localhost:3001/god-mode/
+fresh instance -> sign-up path
+  [shot] 01-admin-setup-empty.png  (实例管理员注册页)
+  [shot] 02-admin-setup-filled.png  (填写实例管理员信息)
+url=http://localhost:3001/god-mode/general/
+  [shot] 03-admin-console.png  (实例管理台 General)
+
+===== A2-web-onboarding =====
+url=http://localhost:3000/onboarding/
+  [dom] 5 interactive elements
+    <button type=button id=base-ui-_r_c_> W Wilber Wright
+    <button type=button> W
+    <button type=button> Upload image
+    <input type=text id=first_name name=first_name ph="Enter your full name"> Wilber
+    <button type=submit> Continue
+  [shot] 04-onboarding-profile.png  (Onboarding：创建个人资料)
+
+===== A3-profile =====
+  [shot] 05-onboarding-profile-filled.png  (填写个人资料)
+url=http://localhost:3000/onboarding/
+  [dom] 11 interactive elements
+    <button type=button> 
+    <button type=button id=base-ui-_r_n_> W Wilber Wright
+    <input type=text id=name name=name ph="Enter workspace name"> Enter workspace name
+    <input type=text id=slug name=slug ph="Type or paste a URL"> Type or paste a URL
+    <button> Just myself
+    <button> 2-10
+    <button> 11-50
+    <button> 51-200
+    <button> 201-500
+    <button> 500+
+    <button type=submit> Create workspace
+  [shot] 06-onboarding-workspace-form.png  (创建工作区表单)
+
+===== A4-workspace =====
+  [shot] 07-workspace-form-filled.png  (填写工作区信息)
+  [dom] 11 interactive elements
+    <button type=button> 
+    <button type=button id=base-ui-_r_n_> W Wilber Wright
+    <input type=text id=name name=name ph="Enter workspace name"> hrms
+    <input type=text id=slug name=slug ph="Type or paste a URL"> hrms
+    <button> Just myself
+    <button> 2-10
+    <button> 11-50
+    <button> 51-200
+    <button> 201-500
+    <button> 500+
+    <button type=submit> Create workspace
+url=http://localhost:3000/hrms/
+  [shot] 08-workspace-home.png  (工作区首页)
+  [dom] 46 interactive elements
+    <button type=button id=base-ui-_r_v_> H hrms
+    <div> 
+    <input type=text ph="Search commands..."> Search commands...
+    <a> 
+    <button type=button id=base-ui-_r_18_> 
+    <a> Star us on GitHub
+    <button type=button id=base-ui-_r_1d_> W
+    <button type=button> 
+    <button type=button> 
+    <button type=button> New work item
+    <a> Home
+    <a> Drafts
+    <a> Your work
+    <a> Stickies
+    <button type=button> Workspace
+    <a> Projects
+    <button type=button id=extended-sidebar-toggle> More
+    <button type=button> Projects
+    <button type=button> Add project
+    <button type=button id=base-ui-_r_1u_> Community
+    <button type=button> 
+    <button type=button> 
+    <button type=button> New work item
+    <a> Home
+    <a> Drafts
+    <a> Your work
+    <a> Stickies
+    <button type=button> Workspace
+    <a> Projects
+    <button type=button id=extended-sidebar-toggle> More
+    <button type=button> Projects
+    <button type=button> Add project
+    <button type=button id=base-ui-_r_2a_> Community
+    <button type=button> Manage widgets
+    <button type=button> Take a Product Tour
+    <button type=button> No thanks, I will explore it myself
+    <button> Not right now
+    <button type=button> Get started
+    <a> Get them in
+    <a> Configure this workspace
+    <a> A
+    <a> Personalize now
+    <button> Add quick Link
+    <button type=button id=base-ui-_r_3h_> All
+    <button type=button> 
+    <button> Add sticky
+
+===== run1-bootstrap  (2026-10-03T07:16:43.017Z) =====
+-- FAILED REQUESTS --
+404  GET    /site.webmanifest.json
+404  GET    /site.webmanifest.json
+403  GET    /api/instances/admins/me/
+403  GET    /api/instances/admins/
+404  GET    /site.webmanifest.json
+404  GET    /site.webmanifest.json
+404  GET    /api/users/me/workspaces/invitations/
+404  GET    /api/users/me/workspaces/invitations/
+404  GET    /api/workspaces/hrms/quick-links/
+
+-- MUTATIONS --
+302  POST   /api/instances/admins/sign-up/
+200  PATCH  /api/users/me/
+200  PATCH  /api/users/me/profile/
+200  PATCH  /api/users/me/profile/
+201  POST   /api/workspaces/
+200  PATCH  /api/users/me/profile/
+200  PATCH  /api/users/me/profile/
+200  PATCH  /api/users/me/onboard/
+
+-- API READS (deduped, query strings kept) --
+403  GET    /api/instances/admins/me/
+403  GET    /api/instances/admins/
+200  GET    /api/instances/
+200  GET    /api/instances/admins/me/
+200  GET    /api/instances/admins/
+200  GET    /api/users/me/
+200  GET    /api/users/me/settings/
+200  GET    /api/users/me/profile/
+200  GET    /api/users/me/workspaces/
+404  GET    /api/users/me/workspaces/invitations/
+200  GET    /api/workspace-slug-check/?slug=hrms
+200  GET    /api/users/me/settings/?t=1791011790776
+200  GET    /api/users/me/workspaces/hrms/project-roles/
+200  GET    /api/workspaces/hrms/projects/
+200  GET    /api/workspaces/hrms/workspace-members/me/
+200  GET    /api/workspaces/hrms/members/
+200  GET    /api/workspaces/hrms/states/
+200  GET    /api/workspaces/hrms/user-properties/
+200  GET    /api/workspaces/hrms/sidebar-preferences/
+200  GET    /api/workspaces/hrms/user-favorites/?all=true
+200  GET    /api/workspaces/hrms/users/notifications/unread/
+200  GET    /api/workspaces/hrms/home-preferences/
+404  GET    /api/workspaces/hrms/quick-links/
+200  GET    /api/workspaces/hrms/recent-visits/
+200  GET    /api/workspaces/hrms/stickies/?cursor=30:0:0&per_page=30&query=
+
+
+FINAL_URL=http://localhost:3000/hrms/

@@ -1,0 +1,42 @@
+# PocketBase runtime database and preserved run snapshots
+.fe-run/
+.fe-run.*/
+.evidence-*/
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Local build outputs
+.fe.exe
+.evidence.exe
+*.exe
+
+# Temporary route backups kept locally for recovery
+internal/_router.bak-*/
+
+# Browser runtime dependency and session state (cookies, caches, local state)
+tests/browser/node_modules/
+tests/browser/profile/
+tests/browser/profile.*/
+
+# Generated logs by default; keep the final end-to-end run logs as evidence
+tests/logs/*.log
+!tests/logs/run1-bootstrap.mjs.log
+!tests/logs/run2-project.mjs.log
+!tests/logs/run3-issue.mjs.log
+!tests/logs/run4-project-pages.mjs.log
+!tests/logs/run5-publish-space.mjs.log
+!tests/logs/verify-profile.mjs.log
+tests/logs/.*
+tests/logs/sidebar.transformed.js
+
+# Preserved backup directories/files stay local; canonical evidence remains tracked
+tests/evidence/old.bak-*/
+tests/evidence/stale-2024/
+tests/evidence/network.log.bak-*
+tests/evidence/screenshots.bak-*/
+tests/evidence/screenshots.aborted-*/
+tests/evidence/screenshots.stale-bak-*/
+
+tests/smoke/.*.txt

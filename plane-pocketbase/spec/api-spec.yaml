@@ -1,0 +1,4981 @@
+spec: plane-http-api
+source: Plane v1.4.2 Django/DRF backend (apps/api/plane)
+purpose: Exhaustive HTTP API inventory for a Django -> Go/PocketBase migration
+method: Paths extracted programmatically from all urls.py files; methods/view_class derived from
+  as_view() action maps and view-class method definitions; request/response shapes enriched by
+  reading views + serializers. called_by_frontend determined by grepping packages/services/src
+  (plus apps/web for direct fetch calls).
+auth_values: session=CSRF+cookie (main UI) | api_token=Bearer (api/v1) | public=no auth | admin=instance superuser
+summary:
+  total_endpoints: 391
+  called_by_frontend_true: 247
+  excluded_true: 26
+  by_group:
+    analytics: 12
+    asset: 18
+    auth: 37
+    cycle: 15
+    dashboard: 1
+    favorite: 5
+    instance: 14
+    intake: 9
+    issue: 48
+    meta: 16
+    module: 11
+    notification: 7
+    page: 9
+    project: 24
+    publicapi: 77
+    search: 3
+    space: 25
+    view: 8
+    workspace: 52
+  excluded_by_reason:
+    AI feature (LLM assistant endpoint): 2
+    OAuth login provider: 16
+    exporter (analytics export): 1
+    exporter (issue export): 1
+    exporter (workspace user-activity export): 1
+    external integration (Unsplash image search): 1
+    outbound webhook: 4
+  frontend_critical:
+    - analytics.project-stats.list
+    - analytics.advance-analytics.list
+    - analytics.advance-analytics-stats.list
+    - analytics.advance-analytics-charts.list
+    - analytics.advance-analytics.list.2
+    - analytics.advance-analytics-stats.list.2
+    - analytics.advance-analytics-charts.list.2
+    - workspace.api-tokens.list
+    - workspace.api-tokens.detail
+    - asset.file-assets.detail
+    - asset.file-assets.detail.2
+    - asset.restore.create
+    - asset.workspaces.detail
+    - asset.workspaces.detail.2
+    - asset.user-assets.create
+    - asset.user-assets.create.2
+    - asset.restore.create.2
+    - asset.projects.detail
+    - asset.projects.detail.2
+    - asset.bulk.create
+    - asset.check.detail
+    - cycle.list_create
+    - cycle.detail
+    - cycle.cycle-issues.list_create
+    - cycle.cycle-issues.detail
+    - cycle.date-check.create
+    - cycle.user-favorite-cycles.list_create
+    - cycle.user-favorite-cycles.destroy
+    - cycle.transfer-issues.create
+    - cycle.user-properties.list
+    - cycle.archive.list
+    - cycle.archived-cycles.list
+    - cycle.archived-cycles.detail
+    - cycle.progress.list
+    - cycle.analytics.list
+    - project.project-estimates.list
+    - project.estimates.list_create
+    - project.estimates.detail
+    - project.estimate-points.create
+    - project.estimate-points.op
+    - meta.ai-assistant.create
+    - meta.ai-assistant.create.2
+    - intake.list_create
+    - intake.detail
+    - intake.intake-issues.list_create
+    - intake.intake-issues.detail
+    - intake.inboxes.list_create
+    - intake.inboxes.detail
+    - intake.inbox-issues.list_create
+    - intake.inbox-issues.detail
+    - issue.description-versions.list
+    - issue.description-versions.detail
+    - issue.list.list
+    - issue.list_create
+    - issue.issues-detail.list
+    - issue.list
+    - issue.detail
+    - issue.issue-labels.list_create
+    - issue.issue-labels.detail
+    - issue.bulk-create-labels.create
+    - issue.bulk-delete-issues.destroy
+    - issue.bulk-archive-issues.create
+    - issue.sub-issues.list_create
+    - issue.issue-links.list_create
+    - issue.issue-links.detail
+    - issue.attachments.list
+    - issue.attachments.detail
+    - issue.history.list
+    - issue.comments.list_create
+    - issue.comments.detail
+    - issue.subscribe.list
+    - issue.reactions.list_create
+    - issue.reactions.destroy
+    - issue.reactions.list_create.2
+    - issue.reactions.destroy.2
+    - project.user-properties.list
+    - issue.archived-issues.list
+    - issue.archive.list
+    - issue.issue-relation.list_create
+    - issue.remove-relation.create
+    - issue.deleted-issues.list
+    - issue.issue-dates.create
+    - issue.description-versions.list.2
+    - issue.description-versions.detail.2
+    - issue.meta.list
+    - issue.work-items.detail
+    - module.list_create
+    - module.detail
+    - issue.modules.create
+    - issue.list_create.2
+    - issue.detail.2
+    - module.module-links.list_create
+    - module.module-links.detail
+    - module.user-favorite-modules.list_create
+    - module.user-favorite-modules.destroy
+    - module.user-properties.list
+    - module.archive.list
+    - module.archived-modules.list
+    - module.archived-modules.detail
+    - notification.list
+    - notification.detail
+    - notification.read.create
+    - notification.archive.create
+    - notification.unread.list
+    - notification.mark-all-read.create
+    - notification.notification-preferences.list
+    - page.pages-summary.list
+    - page.list_create
+    - page.detail
+    - page.favorite-pages.create
+    - page.archive.create
+    - page.lock.create
+    - page.access.create
+    - page.description.list
+    - issue.versions.list.2
+    - issue.versions.detail.2
+    - page.duplicate.create
+    - project.list_create
+    - project.details.list
+    - project.detail
+    - workspace.project-identifiers.list
+    - project.invitations.list_create
+    - project.invitations.detail
+    - project.invitations.list_create.2
+    - workspace.project-roles.list
+    - project.join.list_create
+    - project.members.list_create
+    - project.members.detail
+    - project.leave.create
+    - view.project-views.create
+    - project.me.list
+    - favorite.user-favorite-projects.list_create
+    - favorite.user-favorite-projects.destroy
+    - project.project-deploy-boards.list_create
+    - project.project-deploy-boards.detail
+    - project.archive.create
+    - search.list
+    - search.search-issues.list
+    - search.entity-search.list
+    - project.states.list_create
+    - project.states.detail
+    - intake.intake-state.list
+    - project.mark-default.create
+    - workspace.me.list
+    - workspace.settings.list
+    - workspace.generate-code.create
+    - workspace.email.update
+    - workspace.profile.list
+    - workspace.accounts.list
+    - workspace.instance-admin.list
+    - workspace.onboard.update
+    - workspace.tour-completed.update
+    - workspace.list
+    - view.list_create
+    - view.detail
+    - view.list_create.2
+    - view.detail.2
+    - issue.list.2
+    - view.user-favorite-views.list_create
+    - view.user-favorite-views.destroy
+    - meta.webhooks.list
+    - meta.webhooks.detail
+    - meta.regenerate.create
+    - workspace.workspace-slug-check.list
+    - workspace.list_create
+    - workspace.detail
+    - workspace.invitations.list_create
+    - workspace.invitations.detail
+    - workspace.invitations.list_create.2
+    - workspace.join.list_create
+    - workspace.members.list
+    - workspace.members.detail
+    - workspace.leave.create
+    - workspace.last-visited-workspace.list
+    - workspace.me.list.2
+    - view.workspace-views.create
+    - workspace.user-stats.detail
+    - workspace.user-activity.detail
+    - meta.export.create
+    - workspace.user-profile.detail
+    - workspace.user-issues.detail
+    - workspace.labels.list
+    - workspace.user-properties.list
+    - workspace.states.list
+    - workspace.estimates.list
+    - module.list
+    - cycle.list
+    - favorite.user-favorites.list
+    - favorite.user-favorites.detail
+    - favorite.group.list
+    - workspace.draft-issues.list_create
+    - workspace.draft-issues.detail
+    - workspace.draft-to-issue.create
+    - workspace.quick-links.list_create
+    - workspace.quick-links.detail
+    - workspace.home-preferences.list
+    - workspace.home-preferences.detail
+    - workspace.recent-visits.list
+    - workspace.stickies.list_create
+    - workspace.stickies.detail
+    - workspace.sidebar-preferences.list
+    - space.anchor.detail
+    - space.anchor.detail.2
+    - space.restore.create
+    - space.bulk.create
+    - space.issues.detail
+    - space.comments.list_create
+    - space.comments.detail
+    - space.reactions.list_create
+    - space.reactions.destroy
+    - space.reactions.list_create.2
+    - space.reactions.destroy.2
+    - space.votes.list
+    - space.settings.list
+    - space.issues.list
+    - space.anchor.list
+    - space.cycles.list
+    - space.modules.list
+    - space.states.list
+    - space.labels.list
+    - space.members.list
+    - instance.root.list
+    - instance.admins.list
+    - instance.me.list
+    - instance.configurations.list
+    - instance.disable-email-feature.destroy
+    - instance.sign-in.create
+    - instance.sign-up.create
+    - instance.email-credentials-check.create
+    - instance.workspace-slug-check.list
+    - instance.workspaces.list_create
+    - auth.sign-in.create
+    - auth.sign-up.create
+    - auth.sign-in.create.2
+    - auth.sign-up.create.2
+    - auth.get-csrf-token.list
+    - auth.magic-generate.create
+    - auth.magic-sign-in.create
+    - auth.magic-sign-up.create
+    - auth.magic-generate.create.2
+    - auth.magic-sign-in.create.2
+    - auth.magic-sign-up.create.2
+    - auth.email-check.create
+    - auth.email-check.create.2
+    - auth.forgot-password.create
+    - auth.change-password.create
+    - auth.set-password.create
+endpoints:
+  - id: analytics.list
+    path: "/api/workspaces/{slug}/analytics/"
+    methods: [GET]
+    group: analytics
+    auth: session
+    view_class: AnalyticsEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{total, distribution:{...}, extras:{state_details, assignee_details, label_details, cycle_details, module_details}}"
+  - id: analytics.analytic-view.list_create
+    path: "/api/workspaces/{slug}/analytic-view/"
+    methods: [GET, POST]
+    group: analytics
+    auth: session
+    view_class: AnalyticViewViewset
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single analytics object
+  - id: analytics.analytic-view.detail
+    path: "/api/workspaces/{slug}/analytic-view/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: analytics
+    auth: session
+    view_class: AnalyticViewViewset
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single analytics object
+  - id: analytics.saved-analytic-view.detail
+    path: "/api/workspaces/{slug}/saved-analytic-view/{analytic_id}/"
+    methods: [GET]
+    group: analytics
+    auth: session
+    view_class: SavedAnalyticEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single analytics object
+  - id: meta.export-analytics.create
+    path: "/api/workspaces/{slug}/export-analytics/"
+    methods: [POST]
+    group: meta
+    auth: session
+    view_class: ExportAnalyticsEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: exporter (analytics export)
+    confidence: medium
+    request_shape: null
+    response_shape: single meta object
+  - id: analytics.default-analytics.list
+    path: "/api/workspaces/{slug}/default-analytics/"
+    methods: [GET]
+    group: analytics
+    auth: session
+    view_class: DefaultAnalyticsEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{total_issues, total_issues_classified, open_issues, open_issues_classified, issue_completed_month_wise, most_issue_created_user, most_issue_closed_user, pending_issue_user, open_estimate_sum, total_estimate_sum}"
+  - id: analytics.project-stats.list
+    path: "/api/workspaces/{slug}/project-stats/"
+    methods: [GET]
+    group: analytics
+    auth: session
+    view_class: ProjectStatsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "plain list [{id, total_issues, completed_issues, total_members, total_cycles, total_modules}]"
+  - id: analytics.advance-analytics.list
+    path: "/api/workspaces/{slug}/advance-analytics/"
+    methods: [GET]
+    group: analytics
+    auth: session
+    view_class: AdvanceAnalyticsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{total_users, total_admins, total_members, total_guests, total_projects, total_work_items, total_cycles, total_intake} (tab=overview) or work-item group counts (tab=work-items)"
+  - id: analytics.advance-analytics-stats.list
+    path: "/api/workspaces/{slug}/advance-analytics-stats/"
+    methods: [GET]
+    group: analytics
+    auth: session
+    view_class: AdvanceAnalyticsStatsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "plain list per project [{project_id, project__name, cancelled_work_items, completed_work_items, backlog_work_items, un_started_work_items, started_work_items}]"
+  - id: analytics.advance-analytics-charts.list
+    path: "/api/workspaces/{slug}/advance-analytics-charts/"
+    methods: [GET]
+    group: analytics
+    auth: session
+    view_class: AdvanceAnalyticsChartEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{data:[{key,name,count,completed_issues,created_issues}], schema:{...}} or [{key,name,count}]"
+  - id: analytics.advance-analytics.list.2
+    path: "/api/workspaces/{slug}/projects/{project_id}/advance-analytics/"
+    methods: [GET]
+    group: analytics
+    auth: session
+    view_class: ProjectAdvanceAnalyticsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single analytics object
+  - id: analytics.advance-analytics-stats.list.2
+    path: "/api/workspaces/{slug}/projects/{project_id}/advance-analytics-stats/"
+    methods: [GET]
+    group: analytics
+    auth: session
+    view_class: ProjectAdvanceAnalyticsStatsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single analytics object
+  - id: analytics.advance-analytics-charts.list.2
+    path: "/api/workspaces/{slug}/projects/{project_id}/advance-analytics-charts/"
+    methods: [GET]
+    group: analytics
+    auth: session
+    view_class: ProjectAdvanceAnalyticsChartEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single analytics object
+  - id: workspace.api-tokens.list
+    path: /api/users/api-tokens/
+    methods: [GET, POST, PATCH, DELETE]
+    group: workspace
+    auth: session
+    view_class: ApiTokenEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.api-tokens.detail
+    path: "/api/users/api-tokens/{pk}/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: workspace
+    auth: session
+    view_class: ApiTokenEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: asset.file-assets.list
+    path: "/api/workspaces/{slug}/file-assets/"
+    methods: [GET, POST, DELETE]
+    group: asset
+    auth: session
+    view_class: FileAssetEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.file-assets.detail
+    path: "/api/workspaces/file-assets/{workspace_id}/{asset_key}/"
+    methods: [GET, POST, DELETE]
+    group: asset
+    auth: session
+    view_class: FileAssetEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.file-assets.list.2
+    path: /api/users/file-assets/
+    methods: [GET, POST, DELETE]
+    group: asset
+    auth: session
+    view_class: UserAssetsEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.file-assets.detail.2
+    path: "/api/users/file-assets/{asset_key}/"
+    methods: [GET, POST, DELETE]
+    group: asset
+    auth: session
+    view_class: UserAssetsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.restore.create
+    path: "/api/workspaces/file-assets/{workspace_id}/{asset_key}/restore/"
+    methods: [POST]
+    group: asset
+    auth: session
+    view_class: FileAssetViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.workspaces.detail
+    path: "/api/assets/v2/workspaces/{slug}/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: asset
+    auth: session
+    view_class: WorkspaceFileAssetEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{upload_data:{url, fields}, asset_id, asset_url}"
+  - id: asset.workspaces.detail.2
+    path: "/api/assets/v2/workspaces/{slug}/{asset_id}/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: asset
+    auth: session
+    view_class: WorkspaceFileAssetEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.user-assets.create
+    path: /api/assets/v2/user-assets/
+    methods: [POST, PATCH, DELETE]
+    group: asset
+    auth: session
+    view_class: UserAssetsV2Endpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{upload_data:{url, fields}, asset_id, asset_url}"
+  - id: asset.user-assets.create.2
+    path: "/api/assets/v2/user-assets/{asset_id}/"
+    methods: [POST, PATCH, DELETE]
+    group: asset
+    auth: session
+    view_class: UserAssetsV2Endpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.restore.create.2
+    path: "/api/assets/v2/workspaces/{slug}/restore/{asset_id}/"
+    methods: [POST]
+    group: asset
+    auth: session
+    view_class: AssetRestoreEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.static.detail
+    path: "/api/assets/v2/static/{asset_id}/"
+    methods: [GET]
+    group: asset
+    auth: session
+    view_class: StaticFileAssetEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: 302 redirect to presigned S3 URL
+  - id: asset.projects.detail
+    path: "/api/assets/v2/workspaces/{slug}/projects/{project_id}/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: asset
+    auth: session
+    view_class: ProjectAssetEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.projects.detail.2
+    path: "/api/assets/v2/workspaces/{slug}/projects/{project_id}/{pk}/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: asset
+    auth: session
+    view_class: ProjectAssetEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.bulk.create
+    path: "/api/assets/v2/workspaces/{slug}/projects/{project_id}/{entity_id}/bulk/"
+    methods: [POST]
+    group: asset
+    auth: session
+    view_class: ProjectBulkAssetEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.check.detail
+    path: "/api/assets/v2/workspaces/{slug}/check/{asset_id}/"
+    methods: [GET]
+    group: asset
+    auth: session
+    view_class: AssetCheckEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{exists: bool}"
+  - id: asset.duplicate-assets.create
+    path: "/api/assets/v2/workspaces/{slug}/duplicate-assets/{asset_id}/"
+    methods: [POST]
+    group: asset
+    auth: session
+    view_class: DuplicateAssetEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{asset_id}"
+  - id: asset.download.detail
+    path: "/api/assets/v2/workspaces/{slug}/download/{asset_id}/"
+    methods: [GET]
+    group: asset
+    auth: session
+    view_class: WorkspaceAssetDownloadEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: asset.download.detail.2
+    path: "/api/assets/v2/workspaces/{slug}/projects/{project_id}/download/{asset_id}/"
+    methods: [GET]
+    group: asset
+    auth: session
+    view_class: ProjectAssetDownloadEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single asset object
+  - id: cycle.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/cycles/"
+    methods: [GET, POST]
+    group: cycle
+    auth: session
+    view_class: CycleViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: name; optional: description, start_date, end_date, owned_by, timezone, view_props, sort_order, external_source, external_id, logo_props"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[CycleSerializer: id, name, description, start_date, end_date, owned_by, status(CURRENT|UPCOMING|COMPLETED|DRAFT), total_issues, completed_issues, cancelled_issues, started_issues, unstarted_issues, backlog_issues, assignee_ids[], is_favorite, progress_snapshot, logo_props]"
+  - id: cycle.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/cycles/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: cycle
+    auth: session
+    view_class: CycleViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: CycleSerializer object (+ distribution/estimate_distribution for ?type=points)
+  - id: cycle.cycle-issues.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/cycles/{cycle_id}/cycle-issues/"
+    methods: [GET, POST]
+    group: cycle
+    auth: session
+    view_class: CycleIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. grouped results=[issue objects] (GroupedOffsetPaginator when group_by set)"
+  - id: cycle.cycle-issues.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/cycles/{cycle_id}/cycle-issues/{issue_id}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: cycle
+    auth: session
+    view_class: CycleIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single cycle object
+  - id: cycle.date-check.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/cycles/date-check/"
+    methods: [POST]
+    group: cycle
+    auth: session
+    view_class: CycleDateCheckEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single cycle object
+  - id: cycle.user-favorite-cycles.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/user-favorite-cycles/"
+    methods: [GET, POST]
+    group: cycle
+    auth: session
+    view_class: CycleFavoriteViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single cycle object
+  - id: cycle.user-favorite-cycles.destroy
+    path: "/api/workspaces/{slug}/projects/{project_id}/user-favorite-cycles/{cycle_id}/"
+    methods: [DELETE]
+    group: cycle
+    auth: session
+    view_class: CycleFavoriteViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single cycle object
+  - id: cycle.transfer-issues.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/cycles/{cycle_id}/transfer-issues/"
+    methods: [POST]
+    group: cycle
+    auth: session
+    view_class: TransferCycleIssueEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single cycle object
+  - id: cycle.user-properties.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/cycles/{cycle_id}/user-properties/"
+    methods: [GET, PATCH]
+    group: cycle
+    auth: session
+    view_class: CycleUserPropertiesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single cycle object
+  - id: cycle.archive.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/cycles/{cycle_id}/archive/"
+    methods: [GET, POST, DELETE]
+    group: cycle
+    auth: session
+    view_class: CycleArchiveUnarchiveEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single cycle object
+  - id: cycle.archived-cycles.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/archived-cycles/"
+    methods: [GET, POST, DELETE]
+    group: cycle
+    auth: session
+    view_class: CycleArchiveUnarchiveEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: plain list of cycle dicts with estimate-point aggregates (backlog/unstarted/started/cancelled/completed/total_estimate_points)
+  - id: cycle.archived-cycles.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/archived-cycles/{pk}/"
+    methods: [GET, POST, DELETE]
+    group: cycle
+    auth: session
+    view_class: CycleArchiveUnarchiveEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single cycle object
+  - id: cycle.progress.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/cycles/{cycle_id}/progress/"
+    methods: [GET]
+    group: cycle
+    auth: session
+    view_class: CycleProgressEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{completed_issues, total_issues, backlog_issues, unstarted_issues, started_issues, cancelled_issues, completed_estimate_points, total_estimate_points, ...}"
+  - id: cycle.analytics.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/cycles/{cycle_id}/analytics/"
+    methods: [GET]
+    group: cycle
+    auth: session
+    view_class: CycleAnalyticsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{data:[{key, name, count, completed_issues, created_issues}], schema:{completed_issues, created_issues}}"
+  - id: project.project-estimates.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/project-estimates/"
+    methods: [GET]
+    group: project
+    auth: session
+    view_class: ProjectEstimatePointEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.estimates.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/estimates/"
+    methods: [GET, POST]
+    group: project
+    auth: session
+    view_class: BulkEstimatePointEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.estimates.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/estimates/{estimate_id}/"
+    methods: [GET, PATCH, DELETE]
+    group: project
+    auth: session
+    view_class: BulkEstimatePointEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.estimate-points.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/estimates/{estimate_id}/estimate-points/"
+    methods: [POST]
+    group: project
+    auth: session
+    view_class: EstimatePointEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.estimate-points.op
+    path: "/api/workspaces/{slug}/projects/{project_id}/estimates/{estimate_id}/estimate-points/{estimate_point_id}/"
+    methods: [PATCH, DELETE]
+    group: project
+    auth: session
+    view_class: EstimatePointEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: meta.export-issues.list_create
+    path: "/api/workspaces/{slug}/export-issues/"
+    methods: [GET, POST]
+    group: meta
+    auth: session
+    view_class: ExportIssuesEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: exporter (issue export)
+    confidence: medium
+    request_shape: null
+    response_shape: single meta object
+  - id: meta.unsplash.list
+    path: /api/unsplash/
+    methods: [GET]
+    group: meta
+    auth: session
+    view_class: UnsplashEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: external integration (Unsplash image search)
+    confidence: medium
+    request_shape: null
+    response_shape: single meta object
+  - id: meta.ai-assistant.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/ai-assistant/"
+    methods: [POST]
+    group: meta
+    auth: session
+    view_class: GPTIntegrationEndpoint
+    called_by_frontend: true
+    excluded: true
+    exclusion_reason: AI feature (LLM assistant endpoint)
+    confidence: medium
+    request_shape: null
+    response_shape: single meta object
+  - id: meta.ai-assistant.create.2
+    path: "/api/workspaces/{slug}/ai-assistant/"
+    methods: [POST]
+    group: meta
+    auth: session
+    view_class: WorkspaceGPTIntegrationEndpoint
+    called_by_frontend: true
+    excluded: true
+    exclusion_reason: AI feature (LLM assistant endpoint)
+    confidence: medium
+    request_shape: null
+    response_shape: single meta object
+  - id: intake.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/intakes/"
+    methods: [GET, POST]
+    group: intake
+    auth: session
+    view_class: IntakeViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "IntakeSerializer object: id, name, is_default, pending_issue_count, project_id, workspace_id"
+  - id: intake.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/intakes/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: intake
+    auth: session
+    view_class: IntakeViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single intake object
+  - id: intake.intake-issues.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/intake-issues/"
+    methods: [GET, POST]
+    group: intake
+    auth: session
+    view_class: IntakeIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: issue.name; optional: issue.priority, issue.description_html, issue.description_json"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IntakeIssueSerializer: id, status, snoozed_till, duplicate_to, source, issue{IssueSerializer}]"
+  - id: intake.intake-issues.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/intake-issues/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: intake
+    auth: session
+    view_class: IntakeIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: IntakeIssueDetailSerializer object
+  - id: intake.inboxes.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/inboxes/"
+    methods: [GET, POST]
+    group: intake
+    auth: session
+    view_class: IntakeViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single intake object
+  - id: intake.inboxes.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/inboxes/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: intake
+    auth: session
+    view_class: IntakeViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single intake object
+  - id: intake.inbox-issues.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/inbox-issues/"
+    methods: [GET, POST]
+    group: intake
+    auth: session
+    view_class: IntakeIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: issue.name; optional: issue.priority, issue.description_html"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IntakeIssueSerializer]"
+  - id: intake.inbox-issues.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/inbox-issues/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: intake
+    auth: session
+    view_class: IntakeIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single intake object
+  - id: issue.description-versions.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/intake-work-items/{work_item_id}/description-versions/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: IntakeWorkItemDescriptionVersionEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.description-versions.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/intake-work-items/{work_item_id}/description-versions/{pk}/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: IntakeWorkItemDescriptionVersionEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.list.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/list/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: IssueListEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: plain list of IssueListDetailSerializer objects (non-paginated)
+  - id: issue.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/"
+    methods: [GET, POST]
+    group: issue
+    auth: session
+    view_class: IssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: name; optional: description_html, description_json, priority, state_id, assignees[], labels[], start_date, target_date, parent_id, estimate_point, module_ids[], cycle_id, type_id"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueSerializer: id, name, sequence_id, project_id, workspace_id, state_id, state__group, priority, assignees[], label_ids[], module_ids[], cycle_id, link_count, attachment_count, sub_issues_count, start_date, target_date, completed_at, created_by, is_draft, archived_at, created_at, updated_at]"
+  - id: issue.issues-detail.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues-detail/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: IssueDetailEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: IssueDetailSerializer object (by ?issue_id=)
+  - id: issue.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/v2/issues/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: IssuePaginatedViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueSerializer] (v2 paginated list)"
+  - id: issue.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: issue
+    auth: session
+    view_class: IssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "optional: any issue field (partial update)"
+    response_shape: "IssueDetailSerializer: IssueSerializer fields + description_html, description_json, description_stripped, description_binary, parent_id, estimate_point, subscribers[], modules[], cycle_id"
+  - id: issue.issue-labels.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/issue-labels/"
+    methods: [GET, POST]
+    group: issue
+    auth: session
+    view_class: LabelViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.issue-labels.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/issue-labels/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: issue
+    auth: session
+    view_class: LabelViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.bulk-create-labels.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/bulk-create-labels/"
+    methods: [POST]
+    group: issue
+    auth: session
+    view_class: BulkCreateIssueLabelsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.bulk-delete-issues.destroy
+    path: "/api/workspaces/{slug}/projects/{project_id}/bulk-delete-issues/"
+    methods: [DELETE]
+    group: issue
+    auth: session
+    view_class: BulkDeleteIssuesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.bulk-archive-issues.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/bulk-archive-issues/"
+    methods: [POST]
+    group: issue
+    auth: session
+    view_class: BulkArchiveIssuesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.sub-issues.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/sub-issues/"
+    methods: [GET, POST]
+    group: issue
+    auth: session
+    view_class: SubIssuesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueLiteSerializer]"
+  - id: issue.issue-links.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/issue-links/"
+    methods: [GET, POST]
+    group: issue
+    auth: session
+    view_class: IssueLinkViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: url; optional: title, metadata"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueLinkSerializer: id, title, url, metadata, issue_id]"
+  - id: issue.issue-links.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/issue-links/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: issue
+    auth: session
+    view_class: IssueLinkViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.issue-attachments.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/issue-attachments/"
+    methods: [GET, POST, DELETE]
+    group: issue
+    auth: session
+    view_class: IssueAttachmentEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueAttachmentSerializer: id, name, type, size, url, asset_url, attributes]"
+  - id: issue.issue-attachments.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/issue-attachments/{pk}/"
+    methods: [GET, POST, DELETE]
+    group: issue
+    auth: session
+    view_class: IssueAttachmentEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.attachments.list
+    path: "/api/assets/v2/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/attachments/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: issue
+    auth: session
+    view_class: IssueAttachmentV2Endpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.attachments.detail
+    path: "/api/assets/v2/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/attachments/{pk}/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: issue
+    auth: session
+    view_class: IssueAttachmentV2Endpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.history.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/history/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: IssueActivityEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueActivitySerializer: id, field, actor, actor_detail, old_value, new_value, verb, created_at, epoch]"
+  - id: issue.comments.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/comments/"
+    methods: [GET, POST]
+    group: issue
+    auth: session
+    view_class: IssueCommentViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: comment_html; optional: comment_json, access, external_id, external_source"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueCommentSerializer: id, comment_stripped, comment_html, comment_json, actor, actor_detail{id, display_name, avatar_url}, issue_id, access, created_at]"
+  - id: issue.comments.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/comments/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: issue
+    auth: session
+    view_class: IssueCommentViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.issue-subscribers.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/issue-subscribers/"
+    methods: [GET, POST]
+    group: issue
+    auth: session
+    view_class: IssueSubscriberViewSet
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueSubscriberSerializer]"
+  - id: issue.issue-subscribers.destroy
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/issue-subscribers/{subscriber_id}/"
+    methods: [DELETE]
+    group: issue
+    auth: session
+    view_class: IssueSubscriberViewSet
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.subscribe.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/subscribe/"
+    methods: [GET, POST, DELETE]
+    group: issue
+    auth: session
+    view_class: IssueSubscriberViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.reactions.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/reactions/"
+    methods: [GET, POST]
+    group: issue
+    auth: session
+    view_class: IssueReactionViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueReactionSerializer: id, reaction, actor, actor_detail, issue_id]"
+  - id: issue.reactions.destroy
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/reactions/{reaction_code}/"
+    methods: [DELETE]
+    group: issue
+    auth: session
+    view_class: IssueReactionViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.reactions.list_create.2
+    path: "/api/workspaces/{slug}/projects/{project_id}/comments/{comment_id}/reactions/"
+    methods: [GET, POST]
+    group: issue
+    auth: session
+    view_class: CommentReactionViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.reactions.destroy.2
+    path: "/api/workspaces/{slug}/projects/{project_id}/comments/{comment_id}/reactions/{reaction_code}/"
+    methods: [DELETE]
+    group: issue
+    auth: session
+    view_class: CommentReactionViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: project.user-properties.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/user-properties/"
+    methods: [GET, PATCH]
+    group: project
+    auth: session
+    view_class: ProjectUserDisplayPropertyEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "plain object {display_filters, display_properties, filters, ...}"
+  - id: issue.archived-issues.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/archived-issues/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: IssueArchiveViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueSerializer (archived)]"
+  - id: issue.archive.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{pk}/archive/"
+    methods: [GET, POST, DELETE]
+    group: issue
+    auth: session
+    view_class: IssueArchiveViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.issue-relation.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/issue-relation/"
+    methods: [GET, POST]
+    group: issue
+    auth: session
+    view_class: IssueRelationViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.remove-relation.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/remove-relation/"
+    methods: [POST]
+    group: issue
+    auth: session
+    view_class: IssueRelationViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.deleted-issues.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/deleted-issues/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: DeletedIssuesListViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueSerializer (deleted)]"
+  - id: issue.issue-dates.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/issue-dates/"
+    methods: [POST]
+    group: issue
+    auth: session
+    view_class: IssueBulkUpdateDateEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.versions.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/versions/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: IssueVersionEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.versions.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/versions/{pk}/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: IssueVersionEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.description-versions.list.2
+    path: "/api/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/description-versions/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: WorkItemDescriptionVersionEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.description-versions.detail.2
+    path: "/api/workspaces/{slug}/projects/{project_id}/work-items/{work_item_id}/description-versions/{pk}/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: WorkItemDescriptionVersionEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.meta.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/meta/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: IssueMetaEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.work-items.detail
+    path: "/api/workspaces/{slug}/work-items/{project_identifier}-{issue_identifier}/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: IssueDetailIdentifierEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: module.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/modules/"
+    methods: [GET, POST]
+    group: module
+    auth: session
+    view_class: ModuleViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: name; optional: description, start_date, target_date, status, lead_id, member_ids[], view_props, sort_order, external_source, external_id, logo_props"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[ModuleSerializer: id, name, description, status, start_date, target_date, lead_id, member_ids[], total_issues, completed_issues, cancelled_issues, started_issues, unstarted_issues, backlog_issues, is_favorite, view_props, logo_props]"
+  - id: module.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/modules/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: module
+    auth: session
+    view_class: ModuleViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "ModuleDetailSerializer object + distribution/estimate_distribution{assignees, labels, completion_chart}"
+  - id: issue.modules.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/modules/"
+    methods: [POST]
+    group: issue
+    auth: session
+    view_class: ModuleIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.list_create.2
+    path: "/api/workspaces/{slug}/projects/{project_id}/modules/{module_id}/issues/"
+    methods: [GET, POST]
+    group: issue
+    auth: session
+    view_class: ModuleIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. grouped results=[issue objects] (GroupedOffsetPaginator)"
+  - id: issue.detail.2
+    path: "/api/workspaces/{slug}/projects/{project_id}/modules/{module_id}/issues/{issue_id}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: issue
+    auth: session
+    view_class: ModuleIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: module.module-links.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/modules/{module_id}/module-links/"
+    methods: [GET, POST]
+    group: module
+    auth: session
+    view_class: ModuleLinkViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single module object
+  - id: module.module-links.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/modules/{module_id}/module-links/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: module
+    auth: session
+    view_class: ModuleLinkViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single module object
+  - id: module.user-favorite-modules.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/user-favorite-modules/"
+    methods: [GET, POST]
+    group: module
+    auth: session
+    view_class: ModuleFavoriteViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single module object
+  - id: module.user-favorite-modules.destroy
+    path: "/api/workspaces/{slug}/projects/{project_id}/user-favorite-modules/{module_id}/"
+    methods: [DELETE]
+    group: module
+    auth: session
+    view_class: ModuleFavoriteViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single module object
+  - id: module.user-properties.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/modules/{module_id}/user-properties/"
+    methods: [GET, PATCH]
+    group: module
+    auth: session
+    view_class: ModuleUserPropertiesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single module object
+  - id: module.archive.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/modules/{module_id}/archive/"
+    methods: [GET, POST, DELETE]
+    group: module
+    auth: session
+    view_class: ModuleArchiveUnarchiveEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single module object
+  - id: module.archived-modules.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/archived-modules/"
+    methods: [GET, POST, DELETE]
+    group: module
+    auth: session
+    view_class: ModuleArchiveUnarchiveEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: plain list of module dicts with issue/estimate aggregates
+  - id: module.archived-modules.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/archived-modules/{pk}/"
+    methods: [GET, POST, DELETE]
+    group: module
+    auth: session
+    view_class: ModuleArchiveUnarchiveEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single module object
+  - id: notification.list
+    path: "/api/workspaces/{slug}/users/notifications/"
+    methods: [GET]
+    group: notification
+    auth: session
+    view_class: NotificationViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[NotificationSerializer: id, title, message, entity_identifier, entity_name, data, read_at, archived_at, created_at, actor]"
+  - id: notification.detail
+    path: "/api/workspaces/{slug}/users/notifications/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: notification
+    auth: session
+    view_class: NotificationViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single notification object
+  - id: notification.read.create
+    path: "/api/workspaces/{slug}/users/notifications/{pk}/read/"
+    methods: [POST, DELETE]
+    group: notification
+    auth: session
+    view_class: NotificationViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single notification object
+  - id: notification.archive.create
+    path: "/api/workspaces/{slug}/users/notifications/{pk}/archive/"
+    methods: [POST, DELETE]
+    group: notification
+    auth: session
+    view_class: NotificationViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single notification object
+  - id: notification.unread.list
+    path: "/api/workspaces/{slug}/users/notifications/unread/"
+    methods: [GET]
+    group: notification
+    auth: session
+    view_class: UnreadNotificationEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single notification object
+  - id: notification.mark-all-read.create
+    path: "/api/workspaces/{slug}/users/notifications/mark-all-read/"
+    methods: [POST]
+    group: notification
+    auth: session
+    view_class: MarkAllReadNotificationViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single notification object
+  - id: notification.notification-preferences.list
+    path: /api/users/me/notification-preferences/
+    methods: [GET, PATCH]
+    group: notification
+    auth: session
+    view_class: UserNotificationPreferenceEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single notification object
+  - id: page.pages-summary.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/pages-summary/"
+    methods: [GET]
+    group: page
+    auth: session
+    view_class: PageViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "plain list [{id, name, logo_props}]"
+  - id: page.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/pages/"
+    methods: [GET, POST]
+    group: page
+    auth: session
+    view_class: PageViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: name; optional: description_html, description_json, access, color, logo_props, is_locked, parent"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[PageSerializer: id, name, description_html, description_json, description_stripped, access, color, logo_props, is_locked, archived_at, projects[], created_by, updated_at]"
+  - id: page.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/pages/{page_id}/"
+    methods: [GET, PATCH, DELETE]
+    group: page
+    auth: session
+    view_class: PageViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: PageSerializer object (+ project_ids)
+  - id: page.favorite-pages.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/favorite-pages/{page_id}/"
+    methods: [POST, DELETE]
+    group: page
+    auth: session
+    view_class: PageFavoriteViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single page object
+  - id: page.archive.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/pages/{page_id}/archive/"
+    methods: [POST, DELETE]
+    group: page
+    auth: session
+    view_class: PageViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single page object
+  - id: page.lock.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/pages/{page_id}/lock/"
+    methods: [POST, DELETE]
+    group: page
+    auth: session
+    view_class: PageViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single page object
+  - id: page.access.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/pages/{page_id}/access/"
+    methods: [POST]
+    group: page
+    auth: session
+    view_class: PageViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single page object
+  - id: page.description.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/pages/{page_id}/description/"
+    methods: [GET, PATCH]
+    group: page
+    auth: session
+    view_class: PagesDescriptionViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single page object
+  - id: issue.versions.list.2
+    path: "/api/workspaces/{slug}/projects/{project_id}/pages/{page_id}/versions/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: PageVersionEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: issue.versions.detail.2
+    path: "/api/workspaces/{slug}/projects/{project_id}/pages/{page_id}/versions/{pk}/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: PageVersionEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: page.duplicate.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/pages/{page_id}/duplicate/"
+    methods: [POST]
+    group: page
+    auth: session
+    view_class: PageDuplicateEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single page object
+  - id: project.list_create
+    path: "/api/workspaces/{slug}/projects/"
+    methods: [GET, POST]
+    group: project
+    auth: session
+    view_class: ProjectViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: name, identifier; optional: description, network, emoji, cover_image, project_lead, default_assignee, estimate, module_view, cycle_view, issue_views_view, page_view, intake_view, guest_view_all_features, timezone, archive_in, close_in"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[ProjectSerializer: id, name, identifier, description, network, emoji, icon_prop, cover_image_url, logo_props, workspace, workspace_slug, total_members, total_issues, total_cycles, total_modules, is_member, is_lead, lead, members[], created_at]"
+  - id: project.details.list
+    path: "/api/workspaces/{slug}/projects/details/"
+    methods: [GET]
+    group: project
+    auth: session
+    view_class: ProjectViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: plain list of ProjectSerializer objects
+  - id: project.detail
+    path: "/api/workspaces/{slug}/projects/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: project
+    auth: session
+    view_class: ProjectViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "ProjectSerializer object + members[] (ProjectMember detail)"
+  - id: workspace.project-identifiers.list
+    path: "/api/workspaces/{slug}/project-identifiers/"
+    methods: [GET, DELETE]
+    group: workspace
+    auth: session
+    view_class: ProjectIdentifierEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: project.invitations.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/invitations/"
+    methods: [GET, POST]
+    group: project
+    auth: session
+    view_class: ProjectInvitationsViewset
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.invitations.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/invitations/{pk}/"
+    methods: [GET, DELETE]
+    group: project
+    auth: session
+    view_class: ProjectInvitationsViewset
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.invitations.list_create.2
+    path: "/api/users/me/workspaces/{slug}/projects/invitations/"
+    methods: [GET, POST]
+    group: project
+    auth: session
+    view_class: UserProjectInvitationsViewset
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: workspace.project-roles.list
+    path: "/api/users/me/workspaces/{slug}/project-roles/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: UserProjectRolesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: project.join.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/join/{pk}/"
+    methods: [GET, POST]
+    group: project
+    auth: session
+    view_class: ProjectJoinEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.members.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/members/"
+    methods: [GET, POST]
+    group: project
+    auth: session
+    view_class: ProjectMemberViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[ProjectMemberSerializer: id, member, member_detail{...}, role, is_active, created_at]"
+  - id: project.members.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/members/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: project
+    auth: session
+    view_class: ProjectMemberViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.leave.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/members/leave/"
+    methods: [POST]
+    group: project
+    auth: session
+    view_class: ProjectMemberViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: view.project-views.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/project-views/"
+    methods: [POST]
+    group: view
+    auth: session
+    view_class: ProjectUserViewsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single view object
+  - id: project.me.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/project-members/me/"
+    methods: [GET]
+    group: project
+    auth: session
+    view_class: ProjectMemberUserEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: favorite.user-favorite-projects.list_create
+    path: "/api/workspaces/{slug}/user-favorite-projects/"
+    methods: [GET, POST]
+    group: favorite
+    auth: session
+    view_class: ProjectFavoritesViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single favorite object
+  - id: favorite.user-favorite-projects.destroy
+    path: "/api/workspaces/{slug}/user-favorite-projects/{project_id}/"
+    methods: [DELETE]
+    group: favorite
+    auth: session
+    view_class: ProjectFavoritesViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single favorite object
+  - id: project.project-deploy-boards.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/project-deploy-boards/"
+    methods: [GET, POST]
+    group: project
+    auth: session
+    view_class: DeployBoardViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.project-deploy-boards.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/project-deploy-boards/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: project
+    auth: session
+    view_class: DeployBoardViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.archive.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/archive/"
+    methods: [POST, DELETE]
+    group: project
+    auth: session
+    view_class: ProjectArchiveUnarchiveEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.member.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/preferences/member/{member_id}/"
+    methods: [GET, PATCH]
+    group: project
+    auth: session
+    view_class: ProjectMemberPreferenceEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: search.list
+    path: "/api/workspaces/{slug}/search/"
+    methods: [GET]
+    group: search
+    auth: session
+    view_class: GlobalSearchEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{results:{workspace:[{name,id,slug}], project:[{name,id,identifier,workspace__slug}], issue:[{name,id,sequence_id,project__identifier,project_id}], cycle:[...], module:[...], page:[...], issue_view:[...], intake:[...]}}"
+  - id: search.search-issues.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/search-issues/"
+    methods: [GET]
+    group: search
+    auth: session
+    view_class: IssueSearchEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "plain list of issue dicts {name, id, start_date, sequence_id, project__name, project__identifier, project_id, workspace__slug, state__name, state__group, state__color}"
+  - id: search.entity-search.list
+    path: "/api/workspaces/{slug}/entity-search/"
+    methods: [GET]
+    group: search
+    auth: session
+    view_class: SearchEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{results:{...}} entity search across workspace"
+  - id: project.states.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/states/"
+    methods: [GET, POST]
+    group: project
+    auth: session
+    view_class: StateViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: project.states.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/states/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: project
+    auth: session
+    view_class: StateViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: intake.intake-state.list
+    path: "/api/workspaces/{slug}/projects/{project_id}/intake-state/"
+    methods: [GET]
+    group: intake
+    auth: session
+    view_class: IntakeStateEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single intake object
+  - id: project.mark-default.create
+    path: "/api/workspaces/{slug}/projects/{project_id}/states/{pk}/mark-default/"
+    methods: [POST]
+    group: project
+    auth: session
+    view_class: StateViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single project object
+  - id: meta.timezones.list
+    path: /api/timezones/
+    methods: [GET]
+    group: meta
+    auth: session
+    view_class: TimezoneEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single meta object
+  - id: workspace.me.list
+    path: /api/users/me/
+    methods: [GET, PATCH, DELETE]
+    group: workspace
+    auth: session
+    view_class: UserEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.session.list
+    path: /api/users/session/
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: UserSessionEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.settings.list
+    path: /api/users/me/settings/
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: UserEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.generate-code.create
+    path: /api/users/me/email/generate-code/
+    methods: [POST]
+    group: workspace
+    auth: session
+    view_class: UserEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.email.update
+    path: /api/users/me/email/
+    methods: [PATCH]
+    group: workspace
+    auth: session
+    view_class: UserEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.profile.list
+    path: /api/users/me/profile/
+    methods: [GET, PATCH]
+    group: workspace
+    auth: session
+    view_class: ProfileEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.accounts.list
+    path: /api/users/me/accounts/
+    methods: [GET, DELETE]
+    group: workspace
+    auth: session
+    view_class: AccountEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.accounts.detail
+    path: "/api/users/me/accounts/{pk}/"
+    methods: [GET, DELETE]
+    group: workspace
+    auth: session
+    view_class: AccountEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.instance-admin.list
+    path: /api/users/me/instance-admin/
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: UserEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.onboard.update
+    path: /api/users/me/onboard/
+    methods: [PATCH]
+    group: workspace
+    auth: session
+    view_class: UpdateUserOnBoardedEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.tour-completed.update
+    path: /api/users/me/tour-completed/
+    methods: [PATCH]
+    group: workspace
+    auth: session
+    view_class: UpdateUserTourCompletedEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.activities.list
+    path: /api/users/me/activities/
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: UserActivityEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.list
+    path: /api/users/me/workspaces/
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: UserWorkSpacesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.activity-graph.list
+    path: "/api/users/me/workspaces/{slug}/activity-graph/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: UserActivityGraphEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: issue.issues-completed-graph.list
+    path: "/api/users/me/workspaces/{slug}/issues-completed-graph/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: UserIssueCompletedGraphEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: dashboard.list
+    path: "/api/users/me/workspaces/{slug}/dashboard/"
+    methods: [GET]
+    group: dashboard
+    auth: session
+    view_class: UserWorkspaceDashboardEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single dashboard object
+  - id: view.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/views/"
+    methods: [GET, POST]
+    group: view
+    auth: session
+    view_class: IssueViewViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single view object
+  - id: view.detail
+    path: "/api/workspaces/{slug}/projects/{project_id}/views/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: view
+    auth: session
+    view_class: IssueViewViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single view object
+  - id: view.list_create.2
+    path: "/api/workspaces/{slug}/views/"
+    methods: [GET, POST]
+    group: view
+    auth: session
+    view_class: WorkspaceViewViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single view object
+  - id: view.detail.2
+    path: "/api/workspaces/{slug}/views/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: view
+    auth: session
+    view_class: WorkspaceViewViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single view object
+  - id: issue.list.2
+    path: "/api/workspaces/{slug}/issues/"
+    methods: [GET]
+    group: issue
+    auth: session
+    view_class: WorkspaceViewIssuesViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single issue object
+  - id: view.user-favorite-views.list_create
+    path: "/api/workspaces/{slug}/projects/{project_id}/user-favorite-views/"
+    methods: [GET, POST]
+    group: view
+    auth: session
+    view_class: IssueViewFavoriteViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single view object
+  - id: view.user-favorite-views.destroy
+    path: "/api/workspaces/{slug}/projects/{project_id}/user-favorite-views/{view_id}/"
+    methods: [DELETE]
+    group: view
+    auth: session
+    view_class: IssueViewFavoriteViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single view object
+  - id: meta.webhooks.list
+    path: "/api/workspaces/{slug}/webhooks/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: meta
+    auth: session
+    view_class: WebhookEndpoint
+    called_by_frontend: true
+    excluded: true
+    exclusion_reason: outbound webhook
+    confidence: medium
+    request_shape: null
+    response_shape: single meta object
+  - id: meta.webhooks.detail
+    path: "/api/workspaces/{slug}/webhooks/{pk}/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: meta
+    auth: session
+    view_class: WebhookEndpoint
+    called_by_frontend: true
+    excluded: true
+    exclusion_reason: outbound webhook
+    confidence: medium
+    request_shape: null
+    response_shape: single meta object
+  - id: meta.regenerate.create
+    path: "/api/workspaces/{slug}/webhooks/{pk}/regenerate/"
+    methods: [POST]
+    group: meta
+    auth: session
+    view_class: WebhookSecretRegenerateEndpoint
+    called_by_frontend: true
+    excluded: true
+    exclusion_reason: outbound webhook
+    confidence: medium
+    request_shape: null
+    response_shape: single meta object
+  - id: meta.webhook-logs.detail
+    path: "/api/workspaces/{slug}/webhook-logs/{webhook_id}/"
+    methods: [GET]
+    group: meta
+    auth: session
+    view_class: WebhookLogsEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: outbound webhook
+    confidence: medium
+    request_shape: null
+    response_shape: single meta object
+  - id: workspace.workspace-slug-check.list
+    path: /api/workspace-slug-check/
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: WorkSpaceAvailabilityCheckEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.list_create
+    path: /api/workspaces/
+    methods: [GET, POST]
+    group: workspace
+    auth: session
+    view_class: WorkSpaceViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: name, slug; optional: organization_size, timezone, logo_props, company_role"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[WorkspaceSerializer: id, name, slug, logo_url, total_members, total_issues, created_at]"
+  - id: workspace.detail
+    path: "/api/workspaces/{slug}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: workspace
+    auth: session
+    view_class: WorkSpaceViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: WorkspaceSerializer object
+  - id: workspace.invitations.list_create
+    path: "/api/workspaces/{slug}/invitations/"
+    methods: [GET, POST]
+    group: workspace
+    auth: session
+    view_class: WorkspaceInvitationsViewset
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: "required: email; optional: role, message, project_ids[]"
+    response_shape: single workspace object
+  - id: workspace.invitations.detail
+    path: "/api/workspaces/{slug}/invitations/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: workspace
+    auth: session
+    view_class: WorkspaceInvitationsViewset
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.invitations.list_create.2
+    path: /api/users/me/workspaces/invitations/
+    methods: [GET, POST]
+    group: workspace
+    auth: session
+    view_class: UserWorkspaceInvitationsViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.join.list_create
+    path: "/api/workspaces/{slug}/invitations/{pk}/join/"
+    methods: [GET, POST]
+    group: workspace
+    auth: session
+    view_class: WorkspaceJoinEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.members.list
+    path: "/api/workspaces/{slug}/members/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: WorkSpaceMemberViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[WorkspaceMemberSerializer: id, member, member_detail{...}, role, is_active]"
+  - id: workspace.project-members.list
+    path: "/api/workspaces/{slug}/project-members/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: WorkspaceProjectMemberEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.members.detail
+    path: "/api/workspaces/{slug}/members/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: workspace
+    auth: session
+    view_class: WorkSpaceMemberViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.leave.create
+    path: "/api/workspaces/{slug}/members/leave/"
+    methods: [POST]
+    group: workspace
+    auth: session
+    view_class: WorkSpaceMemberViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.last-visited-workspace.list
+    path: /api/users/last-visited-workspace/
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: UserLastProjectWithWorkspaceEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.me.list.2
+    path: "/api/workspaces/{slug}/workspace-members/me/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: WorkspaceMemberUserEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: view.workspace-views.create
+    path: "/api/workspaces/{slug}/workspace-views/"
+    methods: [POST]
+    group: view
+    auth: session
+    view_class: WorkspaceMemberUserViewsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single view object
+  - id: workspace.workspace-themes.list_create
+    path: "/api/workspaces/{slug}/workspace-themes/"
+    methods: [GET, POST]
+    group: workspace
+    auth: session
+    view_class: WorkspaceThemeViewSet
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.workspace-themes.detail
+    path: "/api/workspaces/{slug}/workspace-themes/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: workspace
+    auth: session
+    view_class: WorkspaceThemeViewSet
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.user-stats.detail
+    path: "/api/workspaces/{slug}/user-stats/{user_id}/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: WorkspaceUserProfileStatsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.user-activity.detail
+    path: "/api/workspaces/{slug}/user-activity/{user_id}/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: WorkspaceUserActivityEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: meta.export.create
+    path: "/api/workspaces/{slug}/user-activity/{user_id}/export/"
+    methods: [POST]
+    group: meta
+    auth: session
+    view_class: ExportWorkspaceUserActivityEndpoint
+    called_by_frontend: true
+    excluded: true
+    exclusion_reason: exporter (workspace user-activity export)
+    confidence: medium
+    request_shape: null
+    response_shape: single meta object
+  - id: workspace.user-profile.detail
+    path: "/api/workspaces/{slug}/user-profile/{user_id}/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: WorkspaceUserProfileEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.user-issues.detail
+    path: "/api/workspaces/{slug}/user-issues/{user_id}/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: WorkspaceUserProfileIssuesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.labels.list
+    path: "/api/workspaces/{slug}/labels/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: WorkspaceLabelsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.user-properties.list
+    path: "/api/workspaces/{slug}/user-properties/"
+    methods: [GET, PATCH]
+    group: workspace
+    auth: session
+    view_class: WorkspaceUserPropertiesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.states.list
+    path: "/api/workspaces/{slug}/states/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: WorkspaceStatesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.estimates.list
+    path: "/api/workspaces/{slug}/estimates/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: WorkspaceEstimatesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: module.list
+    path: "/api/workspaces/{slug}/modules/"
+    methods: [GET]
+    group: module
+    auth: session
+    view_class: WorkspaceModulesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single module object
+  - id: cycle.list
+    path: "/api/workspaces/{slug}/cycles/"
+    methods: [GET]
+    group: cycle
+    auth: session
+    view_class: WorkspaceCyclesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single cycle object
+  - id: favorite.user-favorites.list
+    path: "/api/workspaces/{slug}/user-favorites/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: favorite
+    auth: session
+    view_class: WorkspaceFavoriteEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: entity_type, entity_identifier; optional: name, project_id, entity_data"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[FavoriteSerializer: id, entity_type, entity_identifier, name, project_id, workspace_id]"
+  - id: favorite.user-favorites.detail
+    path: "/api/workspaces/{slug}/user-favorites/{favorite_id}/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: favorite
+    auth: session
+    view_class: WorkspaceFavoriteEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single favorite object
+  - id: favorite.group.list
+    path: "/api/workspaces/{slug}/user-favorites/{favorite_id}/group/"
+    methods: [GET]
+    group: favorite
+    auth: session
+    view_class: WorkspaceFavoriteGroupEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single favorite object
+  - id: workspace.draft-issues.list_create
+    path: "/api/workspaces/{slug}/draft-issues/"
+    methods: [GET, POST]
+    group: workspace
+    auth: session
+    view_class: WorkspaceDraftIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.draft-issues.detail
+    path: "/api/workspaces/{slug}/draft-issues/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: workspace
+    auth: session
+    view_class: WorkspaceDraftIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.draft-to-issue.create
+    path: "/api/workspaces/{slug}/draft-to-issue/{draft_id}/"
+    methods: [POST]
+    group: workspace
+    auth: session
+    view_class: WorkspaceDraftIssueViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.quick-links.list_create
+    path: "/api/workspaces/{slug}/quick-links/"
+    methods: [GET, POST]
+    group: workspace
+    auth: session
+    view_class: QuickLinkViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.quick-links.detail
+    path: "/api/workspaces/{slug}/quick-links/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: workspace
+    auth: session
+    view_class: QuickLinkViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.home-preferences.list
+    path: "/api/workspaces/{slug}/home-preferences/"
+    methods: [GET, PATCH]
+    group: workspace
+    auth: session
+    view_class: WorkspaceHomePreferenceViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.home-preferences.detail
+    path: "/api/workspaces/{slug}/home-preferences/{key}/"
+    methods: [GET, PATCH]
+    group: workspace
+    auth: session
+    view_class: WorkspaceHomePreferenceViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.recent-visits.list
+    path: "/api/workspaces/{slug}/recent-visits/"
+    methods: [GET]
+    group: workspace
+    auth: session
+    view_class: UserRecentVisitViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.stickies.list_create
+    path: "/api/workspaces/{slug}/stickies/"
+    methods: [GET, POST]
+    group: workspace
+    auth: session
+    view_class: WorkspaceStickyViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.stickies.detail
+    path: "/api/workspaces/{slug}/stickies/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: workspace
+    auth: session
+    view_class: WorkspaceStickyViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: workspace.sidebar-preferences.list
+    path: "/api/workspaces/{slug}/sidebar-preferences/"
+    methods: [GET, PATCH]
+    group: workspace
+    auth: session
+    view_class: WorkspaceUserPreferenceViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single workspace object
+  - id: publicapi.user-assets.create
+    path: /api/v1/assets/user-assets/
+    methods: [POST, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: UserAssetEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.user-assets.create.2
+    path: "/api/v1/assets/user-assets/{asset_id}/"
+    methods: [POST, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: UserAssetEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.server.create
+    path: /api/v1/assets/user-assets/server/
+    methods: [POST, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: UserServerAssetEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.server.create.2
+    path: "/api/v1/assets/user-assets/{asset_id}/server/"
+    methods: [POST, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: UserServerAssetEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.assets.list
+    path: "/api/v1/workspaces/{slug}/assets/"
+    methods: [GET, POST, PATCH]
+    group: publicapi
+    auth: api_token
+    view_class: GenericAssetEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.assets.detail
+    path: "/api/v1/workspaces/{slug}/assets/{asset_id}/"
+    methods: [GET, POST, PATCH]
+    group: publicapi
+    auth: api_token
+    view_class: GenericAssetEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.cycles.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/cycles/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: CycleListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[CycleSerializer]"
+  - id: publicapi.cycles-lite.list
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/cycles-lite/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: CycleListLiteAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.cycles.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/cycles/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: CycleDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.cycle-issues.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/cycles/{cycle_id}/cycle-issues/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: CycleIssueListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.cycle-issues.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/cycles/{cycle_id}/cycle-issues/{issue_id}/"
+    methods: [GET, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: CycleIssueDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.transfer-issues.create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/cycles/{cycle_id}/transfer-issues/"
+    methods: [POST]
+    group: publicapi
+    auth: api_token
+    view_class: TransferCycleIssueAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.archive.list
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/cycles/{cycle_id}/archive/"
+    methods: [GET, POST, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: CycleArchiveUnarchiveAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.archived-cycles.list
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/archived-cycles/"
+    methods: [GET, POST, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: CycleArchiveUnarchiveAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.unarchive.list
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/archived-cycles/{cycle_id}/unarchive/"
+    methods: [GET, POST, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: CycleArchiveUnarchiveAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.estimates.list
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/estimates/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: ProjectEstimateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.estimate-points.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/estimates/{estimate_id}/estimate-points/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: EstimatePointListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.estimate-points.op
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/estimates/{estimate_id}/estimate-points/{estimate_point_id}/"
+    methods: [PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: EstimatePointDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.intake-issues.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/intake-issues/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: IntakeIssueListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IntakeIssueSerializer]"
+  - id: publicapi.intake-issues.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/intake-issues/{issue_id}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: IntakeIssueDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.labels.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/labels/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: LabelListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[LabelSerializer]"
+  - id: publicapi.labels.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/labels/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: LabelDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.members.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/members/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: ProjectMemberListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: email (invite); optional: role"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[ProjectMemberSerializer]"
+  - id: publicapi.members.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/members/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: ProjectMemberDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.project-members.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/project-members/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: ProjectMemberListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.project-members-lite.list
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/project-members-lite/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: ProjectMemberLiteAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.project-members.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/project-members/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: ProjectMemberDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.members.list
+    path: "/api/v1/workspaces/{slug}/members/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: WorkspaceMemberAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[WorkspaceMemberSerializer]"
+  - id: publicapi.members-lite.list
+    path: "/api/v1/workspaces/{slug}/members-lite/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: WorkspaceMemberLiteAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.modules.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/modules/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: ModuleListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[ModuleSerializer]"
+  - id: publicapi.modules-lite.list
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/modules-lite/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: ModuleListLiteAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.modules.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/modules/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: ModuleDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.module-issues.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/modules/{module_id}/module-issues/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: ModuleIssueListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.module-issues.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/modules/{module_id}/module-issues/{issue_id}/"
+    methods: [GET, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: ModuleIssueDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.archive.list.2
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/modules/{pk}/archive/"
+    methods: [GET, POST, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: ModuleArchiveUnarchiveAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.archived-modules.list
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/archived-modules/"
+    methods: [GET, POST, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: ModuleArchiveUnarchiveAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.unarchive.list.2
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/archived-modules/{pk}/unarchive/"
+    methods: [GET, POST, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: ModuleArchiveUnarchiveAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.projects.list_create
+    path: "/api/v1/workspaces/{slug}/projects/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: ProjectListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[ProjectSerializer]"
+  - id: publicapi.projects-lite.list
+    path: "/api/v1/workspaces/{slug}/projects-lite/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: ProjectListLiteAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.projects.detail
+    path: "/api/v1/workspaces/{slug}/projects/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: ProjectDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.archive.create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/archive/"
+    methods: [POST, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: ProjectArchiveUnarchiveAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.summary.list
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/summary/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: ProjectSummaryAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.schema.list
+    path: /api/v1/schema/
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: SpectacularAPIView
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.swagger-ui.list
+    path: /api/v1/schema/swagger-ui/
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: SpectacularSwaggerView
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.redoc.list
+    path: /api/v1/schema/redoc/
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: SpectacularRedocView
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.states.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/states/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: StateListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[StateSerializer]"
+  - id: publicapi.states.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/states/{state_id}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: StateDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.me.list
+    path: /api/v1/users/me/
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: UserEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: UserSerializer object
+  - id: publicapi.search.list
+    path: "/api/v1/workspaces/{slug}/issues/search/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: IssueSearchEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.issues.detail
+    path: "/api/v1/workspaces/{slug}/issues/{project_identifier}-{issue_identifier}/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: WorkspaceIssueAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.issues.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/issues/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: IssueListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: name; optional: description_html, priority, state, assignees[], labels[], start_date, target_date, external_id, external_source, created_by, created_at"
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueSerializer (public API): id, name, sequence_id, description_html, priority, state, assignees, labels, start_date, target_date, completed_at, external_id, external_source, created_at, updated_at]"
+  - id: publicapi.issues.detail.2
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/issues/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: IssueDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: IssueSerializer object
+  - id: publicapi.links.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/links/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: IssueLinkListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.links.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/links/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: IssueLinkDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.comments.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/comments/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: IssueCommentListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.comments.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/comments/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: IssueCommentDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.activities.list
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/activities/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: IssueActivityListAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.activities.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/activities/{pk}/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: IssueActivityDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.issue-attachments.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/issue-attachments/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: IssueAttachmentListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.issue-attachments.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/issues/{issue_id}/issue-attachments/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: IssueAttachmentDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.search.list.2
+    path: "/api/v1/workspaces/{slug}/work-items/search/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: IssueSearchEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.work-items.detail
+    path: "/api/v1/workspaces/{slug}/work-items/{project_identifier}-{issue_identifier}/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: WorkspaceIssueAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.work-items.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/work-items/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: IssueListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: "required: name; optional: description_html, priority, state, assignees[], labels[], start_date, target_date, external_id, external_source"
+    response_shape: single publicapi object
+  - id: publicapi.work-items.detail.2
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/work-items/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: IssueDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.links.list_create.2
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/work-items/{issue_id}/links/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: IssueLinkListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.links.detail.2
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/work-items/{issue_id}/links/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: IssueLinkDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.comments.list_create.2
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/work-items/{issue_id}/comments/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: IssueCommentListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.comments.detail.2
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/work-items/{issue_id}/comments/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: IssueCommentDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.activities.list.2
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/work-items/{issue_id}/activities/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: IssueActivityListAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.activities.detail.2
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/work-items/{issue_id}/activities/{pk}/"
+    methods: [GET]
+    group: publicapi
+    auth: api_token
+    view_class: IssueActivityDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.attachments.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/work-items/{issue_id}/attachments/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: IssueAttachmentListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.attachments.detail
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/work-items/{issue_id}/attachments/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: IssueAttachmentDetailAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.relations.list_create
+    path: "/api/v1/workspaces/{slug}/projects/{project_id}/work-items/{issue_id}/relations/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: IssueRelationListCreateAPIEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.stickies.list_create
+    path: "/api/v1/workspaces/{slug}/stickies/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: StickyViewSet
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[StickySerializer]"
+  - id: publicapi.stickies.detail
+    path: "/api/v1/workspaces/{slug}/stickies/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: StickyViewSet
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: publicapi.invitations.list_create
+    path: "/api/v1/workspaces/{slug}/invitations/"
+    methods: [GET, POST]
+    group: publicapi
+    auth: api_token
+    view_class: WorkspaceInvitationsViewset
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: email; optional: role, message"
+    response_shape: "list [WorkspaceInviteSerializer]"
+  - id: publicapi.invitations.detail
+    path: "/api/v1/workspaces/{slug}/invitations/{pk}/"
+    methods: [GET, PUT, PATCH, DELETE]
+    group: publicapi
+    auth: api_token
+    view_class: WorkspaceInvitationsViewset
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single publicapi object
+  - id: space.anchor.detail
+    path: "/api/public/assets/v2/anchor/{anchor}/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: space
+    auth: public
+    view_class: EntityAssetEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.anchor.detail.2
+    path: "/api/public/assets/v2/anchor/{anchor}/{pk}/"
+    methods: [GET, POST, PATCH, DELETE]
+    group: space
+    auth: public
+    view_class: EntityAssetEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.restore.create
+    path: "/api/public/assets/v2/anchor/{anchor}/restore/{pk}/"
+    methods: [POST]
+    group: space
+    auth: public
+    view_class: AssetRestoreEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.bulk.create
+    path: "/api/public/assets/v2/anchor/{anchor}/{entity_id}/bulk/"
+    methods: [POST]
+    group: space
+    auth: public
+    view_class: EntityBulkAssetEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.intake-issues.list_create
+    path: "/api/public/anchor/{anchor}/intakes/{intake_id}/intake-issues/"
+    methods: [GET, POST]
+    group: space
+    auth: public
+    view_class: IntakeIssuePublicViewSet
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.inbox-issues.list_create
+    path: "/api/public/anchor/{anchor}/intakes/{intake_id}/inbox-issues/"
+    methods: [GET, POST]
+    group: space
+    auth: public
+    view_class: IntakeIssuePublicViewSet
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.intake-issues.detail
+    path: "/api/public/anchor/{anchor}/intakes/{intake_id}/intake-issues/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: space
+    auth: public
+    view_class: IntakeIssuePublicViewSet
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.project-boards.list
+    path: "/api/public/workspaces/{slug}/project-boards/"
+    methods: [GET]
+    group: space
+    auth: public
+    view_class: WorkspaceProjectDeployBoardEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.issues.detail
+    path: "/api/public/anchor/{anchor}/issues/{issue_id}/"
+    methods: [GET]
+    group: space
+    auth: public
+    view_class: IssueRetrievePublicEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "public issue object with vote_items[], reaction_items[]"
+  - id: space.comments.list_create
+    path: "/api/public/anchor/{anchor}/issues/{issue_id}/comments/"
+    methods: [GET, POST]
+    group: space
+    auth: public
+    view_class: IssueCommentPublicViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: "required: comment_html; optional: comment_json"
+    response_shape: single space object
+  - id: space.comments.detail
+    path: "/api/public/anchor/{anchor}/issues/{issue_id}/comments/{pk}/"
+    methods: [GET, PATCH, DELETE]
+    group: space
+    auth: public
+    view_class: IssueCommentPublicViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.reactions.list_create
+    path: "/api/public/anchor/{anchor}/issues/{issue_id}/reactions/"
+    methods: [GET, POST]
+    group: space
+    auth: public
+    view_class: IssueReactionPublicViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.reactions.destroy
+    path: "/api/public/anchor/{anchor}/issues/{issue_id}/reactions/{reaction_code}/"
+    methods: [DELETE]
+    group: space
+    auth: public
+    view_class: IssueReactionPublicViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.reactions.list_create.2
+    path: "/api/public/anchor/{anchor}/comments/{comment_id}/reactions/"
+    methods: [GET, POST]
+    group: space
+    auth: public
+    view_class: CommentReactionPublicViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.reactions.destroy.2
+    path: "/api/public/anchor/{anchor}/comments/{comment_id}/reactions/{reaction_code}/"
+    methods: [DELETE]
+    group: space
+    auth: public
+    view_class: CommentReactionPublicViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.votes.list
+    path: "/api/public/anchor/{anchor}/issues/{issue_id}/votes/"
+    methods: [GET, POST, DELETE]
+    group: space
+    auth: public
+    view_class: IssueVotePublicViewSet
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: "required: vote (int)"
+    response_shape: single space object
+  - id: space.meta.list
+    path: "/api/public/anchor/{anchor}/meta/"
+    methods: [GET]
+    group: space
+    auth: public
+    view_class: ProjectMetaDataEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "project meta {id, name, identifier, description, emoji, logo_props, ...}"
+  - id: space.settings.list
+    path: "/api/public/anchor/{anchor}/settings/"
+    methods: [GET]
+    group: space
+    auth: public
+    view_class: ProjectDeployBoardPublicSettingsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "DeployBoardSerializer: id, anchor, is_comments_enabled, is_reactions_enabled, is_votes_enabled, is_cycles_enabled, is_modules_enabled, intake, workspace, project"
+  - id: space.issues.list
+    path: "/api/public/anchor/{anchor}/issues/"
+    methods: [GET]
+    group: space
+    auth: public
+    view_class: ProjectIssuesPublicEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[IssueSerializer (public board)]"
+  - id: space.anchor.list
+    path: "/api/public/workspaces/{slug}/projects/{project_id}/anchor/"
+    methods: [GET]
+    group: space
+    auth: public
+    view_class: WorkspaceProjectAnchorEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.cycles.list
+    path: "/api/public/anchor/{anchor}/cycles/"
+    methods: [GET]
+    group: space
+    auth: public
+    view_class: ProjectCyclesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.modules.list
+    path: "/api/public/anchor/{anchor}/modules/"
+    methods: [GET]
+    group: space
+    auth: public
+    view_class: ProjectModulesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.states.list
+    path: "/api/public/anchor/{anchor}/states/"
+    methods: [GET]
+    group: space
+    auth: public
+    view_class: ProjectStatesEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.labels.list
+    path: "/api/public/anchor/{anchor}/labels/"
+    methods: [GET]
+    group: space
+    auth: public
+    view_class: ProjectLabelsEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: space.members.list
+    path: "/api/public/anchor/{anchor}/members/"
+    methods: [GET]
+    group: space
+    auth: public
+    view_class: ProjectMembersEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: medium
+    request_shape: null
+    response_shape: single space object
+  - id: instance.root.list
+    path: /api/instances/
+    methods: [GET, PATCH]
+    group: instance
+    auth: admin
+    view_class: InstanceEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "optional: instance_name, is_telemetry_enabled, instance_id, current_version, ..."
+    response_shape: "{config:{enable_signup, is_workspace_creation_disabled, is_google_enabled, is_github_enabled, is_gitlab_enabled, is_gitea_enabled, is_magic_login_enabled, is_email_password_enabled, github_app_name, slack_client_id, has_unsplash_configured, has_llm_configured, file_size_limit, is_smtp_configured, admin_base_url, space_base_url, app_base_url, instance_changelog_url, is_self_managed}, instance:{id, instance_name, current_version, is_setup_done, is_signup_screen_visited, is_telemetry_enabled, workspaces_exist, ...}}"
+  - id: instance.admins.list
+    path: /api/instances/admins/
+    methods: [GET, POST, DELETE]
+    group: instance
+    auth: admin
+    view_class: InstanceAdminEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: email; optional: role"
+    response_shape: "list [InstanceAdminSerializer: id, user, user_detail{...}, role, instance]"
+  - id: instance.me.list
+    path: /api/instances/admins/me/
+    methods: [GET]
+    group: instance
+    auth: admin
+    view_class: InstanceAdminUserMeEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "InstanceAdminMeSerializer: id, email, first_name, last_name, avatar, ..."
+  - id: instance.session.list
+    path: /api/instances/admins/session/
+    methods: [GET]
+    group: instance
+    auth: admin
+    view_class: InstanceAdminUserSessionEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object (instance admin API)
+  - id: instance.sign-out.create
+    path: /api/instances/admins/sign-out/
+    methods: [POST]
+    group: instance
+    auth: admin
+    view_class: InstanceAdminSignOutEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object (instance admin API)
+  - id: instance.admins.detail
+    path: "/api/instances/admins/{pk}/"
+    methods: [GET, POST, DELETE]
+    group: instance
+    auth: admin
+    view_class: InstanceAdminEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object (instance admin API)
+  - id: instance.configurations.list
+    path: /api/instances/configurations/
+    methods: [GET, PATCH]
+    group: instance
+    auth: admin
+    view_class: InstanceConfigurationEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "map of {configuration_key: value}"
+    response_shape: "list [{id, key, value, category, is_encrypted}]"
+  - id: instance.disable-email-feature.destroy
+    path: /api/instances/configurations/disable-email-feature/
+    methods: [DELETE]
+    group: instance
+    auth: admin
+    view_class: DisableEmailFeatureEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object (instance admin API)
+  - id: instance.sign-in.create
+    path: /api/instances/admins/sign-in/
+    methods: [POST]
+    group: instance
+    auth: admin
+    view_class: InstanceAdminSignInEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object (instance admin API)
+  - id: instance.sign-up.create
+    path: /api/instances/admins/sign-up/
+    methods: [POST]
+    group: instance
+    auth: admin
+    view_class: InstanceAdminSignUpEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object (instance admin API)
+  - id: instance.sign-up-screen-visited.create
+    path: /api/instances/admins/sign-up-screen-visited/
+    methods: [POST]
+    group: instance
+    auth: admin
+    view_class: SignUpScreenVisitedEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object (instance admin API)
+  - id: instance.email-credentials-check.create
+    path: /api/instances/email-credentials-check/
+    methods: [POST]
+    group: instance
+    auth: admin
+    view_class: EmailCredentialCheckEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{message} or {error}"
+  - id: instance.workspace-slug-check.list
+    path: /api/instances/workspace-slug-check/
+    methods: [GET]
+    group: instance
+    auth: admin
+    view_class: InstanceWorkSpaceAvailabilityCheckEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{status: bool}"
+  - id: instance.workspaces.list_create
+    path: /api/instances/workspaces/
+    methods: [GET, POST]
+    group: instance
+    auth: admin
+    view_class: InstanceWorkSpaceEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "cursor-paginated envelope (BasePaginator): {grouped_by, sub_grouped_by, total_count, next_cursor, prev_cursor, next_page_results, prev_page_results, count, total_pages, total_results, extra_stats, results}. results=[WorkspaceSerializer + total_projects, total_members]"
+  - id: auth.sign-in.create
+    path: /auth/sign-in/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: SignInAuthEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "form: email, password, next_path"
+    response_shape: 302 redirect to app (session cookie set) or redirect with ?error_code=
+  - id: auth.sign-up.create
+    path: /auth/sign-up/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: SignUpAuthEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "form: email, password, next_path"
+    response_shape: 302 redirect to app (session cookie set) or redirect with ?error_code=
+  - id: auth.sign-in.create.2
+    path: /auth/spaces/sign-in/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: SignInAuthSpaceEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.sign-up.create.2
+    path: /auth/spaces/sign-up/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: SignUpAuthSpaceEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.sign-out.create
+    path: /auth/sign-out/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: SignOutAuthEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: 302 redirect to app
+  - id: auth.sign-out.create.2
+    path: /auth/spaces/sign-out/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: SignOutAuthSpaceEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.get-csrf-token.list
+    path: /auth/get-csrf-token/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: CSRFTokenEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: "{csrf_token}"
+  - id: auth.magic-generate.create
+    path: /auth/magic-generate/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: MagicGenerateEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: email"
+    response_shape: "{message} (magic code emailed)"
+  - id: auth.magic-sign-in.create
+    path: /auth/magic-sign-in/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: MagicSignInEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: null
+    response_shape: 302 redirect (session cookie set)
+  - id: auth.magic-sign-up.create
+    path: /auth/magic-sign-up/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: MagicSignUpEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.magic-generate.create.2
+    path: /auth/spaces/magic-generate/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: MagicGenerateSpaceEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.magic-sign-in.create.2
+    path: /auth/spaces/magic-sign-in/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: MagicSignInSpaceEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.magic-sign-up.create.2
+    path: /auth/spaces/magic-sign-up/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: MagicSignUpSpaceEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.google.list
+    path: /auth/google/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GoogleOauthInitiateEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.callback.list
+    path: /auth/google/callback/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GoogleCallbackEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.google.list.2
+    path: /auth/spaces/google/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GoogleOauthInitiateSpaceEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.callback.list.2
+    path: /auth/spaces/google/callback/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GoogleCallbackSpaceEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.github.list
+    path: /auth/github/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GitHubOauthInitiateEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.callback.list.3
+    path: /auth/github/callback/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GitHubCallbackEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.github.list.2
+    path: /auth/spaces/github/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GitHubOauthInitiateSpaceEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.callback.list.4
+    path: /auth/spaces/github/callback/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GitHubCallbackSpaceEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.gitlab.list
+    path: /auth/gitlab/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GitLabOauthInitiateEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.callback.list.5
+    path: /auth/gitlab/callback/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GitLabCallbackEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.gitlab.list.2
+    path: /auth/spaces/gitlab/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GitLabOauthInitiateSpaceEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.callback.list.6
+    path: /auth/spaces/gitlab/callback/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GitLabCallbackSpaceEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.email-check.create
+    path: /auth/email-check/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: EmailCheckEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: email"
+    response_shape: "{existing: bool, status: MAGIC_CODE|CREDENTIAL}"
+  - id: auth.email-check.create.2
+    path: /auth/spaces/email-check/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: EmailCheckSpaceEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.forgot-password.create
+    path: /auth/forgot-password/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: ForgotPasswordEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: email"
+    response_shape: "{message} or {error_code, error_message}"
+  - id: auth.reset-password.create
+    path: "/auth/reset-password/{uidb64}/{token}/"
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: ResetPasswordEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.forgot-password.create.2
+    path: /auth/spaces/forgot-password/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: ForgotPasswordSpaceEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.reset-password.create.2
+    path: "/auth/spaces/reset-password/{uidb64}/{token}/"
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: ResetPasswordSpaceEndpoint
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.change-password.create
+    path: /auth/change-password/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: ChangePasswordEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: new_password; optional: old_password"
+    response_shape: "{message: 'Password updated successfully'}"
+  - id: auth.set-password.create
+    path: /auth/set-password/
+    methods: [POST]
+    group: auth
+    auth: public
+    view_class: SetUserPasswordEndpoint
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: high
+    request_shape: "required: password"
+    response_shape: UserSerializer object
+  - id: auth.gitea.list
+    path: /auth/gitea/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GiteaOauthInitiateEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.callback.list.7
+    path: /auth/gitea/callback/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GiteaCallbackEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.gitea.list.2
+    path: /auth/spaces/gitea/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GiteaOauthInitiateSpaceEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: auth.callback.list.8
+    path: /auth/spaces/gitea/callback/
+    methods: [GET]
+    group: auth
+    auth: public
+    view_class: GiteaCallbackSpaceEndpoint
+    called_by_frontend: false
+    excluded: true
+    exclusion_reason: OAuth login provider
+    confidence: low
+    request_shape: null
+    response_shape: JSON object or 302 redirect (see authentication views)
+  - id: meta.robots.txt.list
+    path: /robots.txt
+    methods: [GET]
+    group: meta
+    auth: public
+    view_class: robots_txt
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: plain text / JSON / OpenAPI schema document
+  - id: meta.root.list
+    path: /
+    methods: [GET]
+    group: meta
+    auth: public
+    view_class: health_check
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: plain text / JSON / OpenAPI schema document
+  - id: meta.schema.list
+    path: /api/schema/
+    methods: [GET]
+    group: meta
+    auth: public
+    view_class: SpectacularAPIView
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: plain text / JSON / OpenAPI schema document
+  - id: meta.swagger-ui.list
+    path: /api/schema/swagger-ui/
+    methods: [GET]
+    group: meta
+    auth: public
+    view_class: SpectacularSwaggerView
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: plain text / JSON / OpenAPI schema document
+  - id: meta.redoc.list
+    path: /api/schema/redoc/
+    methods: [GET]
+    group: meta
+    auth: public
+    view_class: SpectacularRedocView
+    called_by_frontend: false
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: null
+    response_shape: plain text / JSON / OpenAPI schema document
