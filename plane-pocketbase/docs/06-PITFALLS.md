@@ -621,6 +621,94 @@ script="$(cygpath -w "$HERE/$name" 2>/dev/null || echo "$HERE/$name")"
 
 ---
 
+### C-11 ⭐⭐ 在 cmd/PowerShell 里敲 `bash xxx.sh` 会跑成 **WSL** 的 bash，然后**假报成功**
+
+**症状**（一次典型的完整输出）
+
+```
+C:\...\tests\browser> bash start-stack.sh all
+mkdir: cannot create directory '/c': Permission denied
+start-stack.sh: line 36: .../tests/logs/stack-wait.log: No such file or directory
+start-stack.sh: line 105: cd: /c/Users/cao/.../plane-pocketbase: No such file or directory
+start-stack.sh: line 123: cd: /c/Users/cao/.../apps/web:         No such file or directory
+...（5 个 cd 全部失败）
+[stack] all requested services are up (after 1s)      ← ★ 最危险的一行
+```
+
+提示符是 `C:\...>` 或 `PS C:\...>`（**不是** `cao@MINGW64 ...$`）。
+
+**根因**（两层，缺一不可）
+
+1. **解释器选错了。** 在 cmd/PowerShell 里 `bash` 走 `%PATH%` 解析，而
+   `C:\Windows\System32\bash.exe` **排在前面**——它是 **WSL 启动器**（旁边就是 `wsl.exe`）。
+   WSL 的 bash：
+   - 看不到 `/c/...`。在 WSL 里 `/c` 是 Linux 根目录 `/` 下的一个普通目录，
+     所以 `mkdir -p /c` 撞到只读的 `/` → `Permission denied`；
+   - 没有 MSYS2 的 POSIX→Windows 路径转换，所以 `cd /c/Users/...` → `No such file or directory`。
+
+2. **脚本本身在撒谎。** 每个 `cd` 失败后子 shell 立刻退出，**一个服务都没启动**，
+   但 `wait_for_services()` 的最后一行是无条件成功：
+   ```bash
+   if ! wait_for_services; then ...fi
+   # 函数返回后，脚本没有任何"再确认一次"就自然结束，退出码 0
+   ```
+   更早的版本甚至在 `for` 循环里用 `curl ... && printf OK || { ok=0; }`，
+   在 WSL 下 `curl` 是 Linux 的 `curl`，对 `127.0.0.1:8000` 的失败探测有时被
+   `||` 分支吞掉，于是第 1 轮就 `ok=1` 直接报成功。
+
+**修法**（三重，都已落地在 `tests/browser/start-stack.sh`）
+
+```bash
+# ① 解释器护栏：进错环境立刻退出并告诉用户正确命令
+_sys="$(uname -s 2>/dev/null || echo unknown)"
+case "$_sys" in
+  MINGW*|MSYS*|CYGWIN*) : ;;        # Git Bash，正确
+  Linux)  echo "你在 WSL 里跑…" >&2; exit 3 ;;   # WSL 启动器
+  *)      echo "不支持的 shell 环境" >&2; exit 3 ;;
+esac
+
+# ② 路径自推导，不再硬编码 /c/Users/cao/...
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PB="$(cd "$HERE/../.." && pwd)"
+
+# ③ 启动失败要能传播：子 shell 里 cd 失败打 FATAL 并 exit 1，
+#    外层 `) || LAUNCH_FAILED=1` 捕获；随后立刻报错退出，
+#    而不是白等 90 轮（≈15 分钟）
+```
+
+以及**失败诊断**：失败时打印 `===== FAILURE REPORT =====`，逐个服务说明
+「端口没被占用（从未启动）」还是「端口被占用但不响应（启动中崩了）」，
+并附上每个 `*-dev.log` 的末 12 行。
+
+**如何自查**
+
+```bash
+# 你在哪个 bash 里？
+uname -s          # MINGW64_NT-* / MSYS_NT-* = Git Bash（对）；Linux = WSL（错）
+
+# 正确调用姿势（从 Git Bash 提示符，或用 -lc 显式进 Git Bash）
+"C:\Program Files\Git\bin\bash.exe" -lc \
+  "cd /c/Users/cao/Desktop/asl-work/plane_pocket/plane-pocketbase/tests/browser && bash start-stack.sh all"
+
+# 脚本退出码必须可信：0 才代表真的起来了
+bash start-stack.sh all; echo "exit=$?"
+```
+
+**凡看到「成功」字样，务必独立复验**（这也是 C-2 的同一条纪律）：
+
+```bash
+for p in 8000 3000 3001 3002 3100; do
+  curl -s -o /dev/null -w "port $p -> %{http_code}\n" --noproxy '*' --max-time 5 "http://127.0.0.1:$p/"
+done
+```
+
+**连带坑**：`run-all.sh` / `run-one.sh` 也有同样的「假成功」。
+`run-all.sh` 原代码在探测超时后只打一句 `continuing anyway` 就往下跑完整个链路；
+`run-one.sh` 原代码 `break` 出循环后**无条件**打印 `services ready after ${i}s`，
+什么都没起来时会报 `ready after 120s`。两者都已改为**显式 `ready` 标志 + 非零退出**。
+
+---
+
 ## D 类 · 前端契约
 
 ### D-1 ⭐⭐ 前端会把失败渲染成「看起来正常」的状态
@@ -904,6 +992,10 @@ mv X "X.bak-$(date +%s)" && mkdir -p X
 | 工具调用结束后服务就死了 | **C-5** |
 | `cannot find go env config: %AppData%` | **C-6** |
 | 拉 Go 模块超时 | **C-7** |
+| **cmd/PowerShell 里 `bash xxx.sh` 报 `mkdir: cannot create directory '/c': Permission denied`** | **C-11** |
+| **`cd: /c/Users/...: No such file or directory`（5 个 cd 全失败）** | **C-11** |
+| **脚本报 `all requested services are up` 但一个服务都没起来** | **C-11** |
+| `services ready after 120s` 但端口全空 | **C-11** |
 | 前端全白 "Plane didn't start up correctly"，日志无请求 | **D-8** |
 | 页面正常但内容是空的 | **D-1** |
 | 照隔壁接口写，前端渲染错 | **D-2** |

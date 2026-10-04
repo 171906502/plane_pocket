@@ -25,12 +25,67 @@
 #     `packageManager: pnpm@11.10.0` and fails to bootstrap its own wrapper.
 #  4. `CODEBUDDY_SAFE_DELETE_ENABLED=0` stops react-router's typegen from
 #     tripping the sandbox bulk-delete guard.
+#
+# ###########################################################################
+# #  THE SCRIPT ONLY RUNS UNDER GIT BASH (MSYS2/MINGW64), NOT cmd/PowerShell  #
+# #  AND NOT WSL.  See the interpreter guard below — it exists because       #
+# #  typing `bash start-stack.sh all` in cmd.exe resolves `bash` to          #
+# #  C:\Windows\System32\bash.exe, which is the WSL launcher. WSL cannot     #
+# #  see /c/Users/... (that is a path under the Linux root) and has no       #
+# #  MSYS2 path translation, so every `cd` fails, nothing starts — and the   #
+# #  health check used to still print "all requested services are up".       #
+# ###########################################################################
 set -u
 
-ROOT="/c/Users/cao/Desktop/asl-work/plane_pocket"
-PB="$ROOT/plane-pocketbase"
+# --- interpreter guard ------------------------------------------------------
+#
+# Refuse to run anywhere the paths below cannot resolve, instead of producing a
+# cascade of `cd: No such file or directory` followed by a false success.
+#
+# `uname -s` is the discriminator: Git Bash reports MINGW64_NT-* / MSYS_NT-*,
+# WSL reports `Linux`, and native Windows shells never get this far (they hand
+# the script to whatever `bash` the PATH resolves to).
+_sys="$(uname -s 2>/dev/null || echo unknown)"
+case "$_sys" in
+  MINGW*|MSYS*|CYGWIN*) : ;;   # good: MSYS2 / Git Bash
+  Linux)
+    cat >&2 <<'EOF'
+[start-stack] FATAL: this script is running under WSL (uname says "Linux").
+
+  You almost certainly typed `bash start-stack.sh ...` in cmd.exe or
+  PowerShell, and Windows resolved `bash` to C:\Windows\System32\bash.exe —
+  the WSL launcher, not Git Bash.
+
+  WSL cannot see the /c/... paths this script uses (in WSL, /c is a directory
+  under the Linux root), so every `cd` fails, no service starts, and you also
+  see `mkdir: cannot create directory '/c': Permission denied`.
+
+  Run it from a real Git Bash prompt instead, e.g.:
+
+    "C:\Program Files\Git\bin\bash.exe" -lc "cd /c/Users/cao/Desktop/asl-work/plane_pocket/plane-pocketbase/tests/browser && bash start-stack.sh all"
+
+  Or open "Git Bash" from the Start menu and cd there manually.
+EOF
+    exit 3 ;;
+  *)
+    echo "[start-stack] FATAL: unsupported shell environment (uname -s='$_sys')." >&2
+    echo "[start-stack] This script requires Git Bash (MSYS2/MINGW64) on Windows or a POSIX shell elsewhere." >&2
+    exit 3 ;;
+esac
+
+# Derive locations from this script's own path instead of hardcoding them, so a
+# clone in a different directory (or a different user) still works.
+#
+# tests/browser/start-stack.sh -> here is tests/browser, PB is the repo root.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PB="$(cd "$HERE/../.." && pwd)"
+ROOT="$(cd "$PB/.." && pwd)"
 FE="$ROOT/plane-preview"
-NODE="/c/Users/cao/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe"
+
+# Node is a fixed toolchain path; allow an override for other machines.
+NODE="${PLANE_NODE:-/c/Users/cao/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe}"
+[ -x "$NODE" ] || echo "[start-stack] WARNING: NODE=$NODE is not executable; apps/live will fail to start" >&2
+
 LOGS="$PB/tests/logs"
 mkdir -p "$LOGS"
 : > "$LOGS/stack-wait.log"   # see wait_for_services() below
@@ -55,6 +110,11 @@ case "$(uname -s 2>/dev/null)" in
 esac
 
 want="${1:-all}"
+
+# Set by any `start_*` whose launch subshell failed (almost always a failed
+# `cd`). Checked before the wait loop so we do not sit through a 90-second
+# timeout for a service that never even reached its executable.
+LAUNCH_FAILED=0
 
 # Every service is launched with `nohup … &` + `disown` so it survives the shell
 # that started it. Without this the service dies the moment the launching
@@ -102,7 +162,7 @@ start_backend() {
   bound 8000 && kill_port 8000
   echo "[stack] backend  -> http://127.0.0.1:8000  (data: .fe-run)"
   (
-    cd "$PB" || exit 1
+    cd "$PB" || { echo "[stack] FATAL: cannot cd to $PB (backend not started)" >&2; exit 1; }
     export APPDATA="C:\\Users\\cao\\AppData\\Roaming"
     export PLANE_PB_DEV=1
     export PLANE_ADMIN_BASE_URL="http://localhost:3001"
@@ -112,7 +172,7 @@ start_backend() {
       --origins="$ORIGINS" \
       > "$LOGS/pb-backend.log" 2>&1 &
     disown
-  )
+  ) || LAUNCH_FAILED=1
 }
 
 start_web() {
@@ -120,11 +180,11 @@ start_web() {
   bound 3000 && kill_port 3000
   echo "[stack] web      -> http://localhost:3000"
   (
-    cd "$FE/apps/web" || exit 1
+    cd "$FE/apps/web" || { echo "[stack] FATAL: cannot cd to $FE/apps/web (web not started)" >&2; exit 1; }
     export CODEBUDDY_SAFE_DELETE_ENABLED=0
     nohup ./node_modules/.bin/react-router dev --port 3000 > "$LOGS/web-dev.log" 2>&1 &
     disown
-  )
+  ) || LAUNCH_FAILED=1
 }
 
 start_admin() {
@@ -132,11 +192,11 @@ start_admin() {
   bound 3001 && kill_port 3001
   echo "[stack] admin    -> http://127.0.0.1:3001/god-mode/"
   (
-    cd "$FE/apps/admin" || exit 1
+    cd "$FE/apps/admin" || { echo "[stack] FATAL: cannot cd to $FE/apps/admin (admin not started)" >&2; exit 1; }
     export CODEBUDDY_SAFE_DELETE_ENABLED=0
     nohup ./node_modules/.bin/react-router dev --port 3001 > "$LOGS/admin-dev.log" 2>&1 &
     disown
-  )
+  ) || LAUNCH_FAILED=1
 }
 
 # The `space` app is Plane's public, read-only project view. It is reached at
@@ -147,11 +207,11 @@ start_space() {
   bound 3002 && kill_port 3002
   echo "[stack] space    -> http://localhost:3002"
   (
-    cd "$FE/apps/space" || exit 1
+    cd "$FE/apps/space" || { echo "[stack] FATAL: cannot cd to $FE/apps/space (space not started)" >&2; exit 1; }
     export CODEBUDDY_SAFE_DELETE_ENABLED=0
     nohup ./node_modules/.bin/react-router dev --port 3002 > "$LOGS/space-dev.log" 2>&1 &
     disown
-  )
+  ) || LAUNCH_FAILED=1
 }
 
 # `apps/live` is the Yjs collaboration server behind the rich-text editor.
@@ -171,10 +231,10 @@ start_live() {
   bound 3100 && kill_port 3100
   echo "[stack] live     -> http://localhost:3100/live/"
   (
-    cd "$FE/apps/live" || exit 1
+    cd "$FE/apps/live" || { echo "[stack] FATAL: cannot cd to $FE/apps/live (live not started)" >&2; exit 1; }
     nohup "$NODE" --env-file=.env . > "$LOGS/live-dev.log" 2>&1 &
     disown
-  )
+  ) || LAUNCH_FAILED=1
 }
 
 case "$want" in
@@ -246,6 +306,52 @@ wait_for_services() {
   return 1
 }
 
+# ------------------------------------------------------------------ failures
+#
+# Turn "something is wrong" into "here is what is wrong": which service is down,
+# whether its port is at least bound (→ it launched and crashed) or not bound at
+# all (→ it never reached its executable), plus the tail of its log.
+#
+# Defined before the checks below so it is available to every failure path.
+report_failure() {
+  echo "" >&2
+  echo "[stack] ===== FAILURE REPORT =====" >&2
+  for spec in "backend:8000:/api/instances/" "web:3000:/" "admin:3001:/god-mode/" "space:3002:/" "live:3100:/live/"; do
+    name="${spec%%:*}"
+    rest="${spec#*:}"
+    port="${rest%%:*}"
+    path="${rest#*:}"
+    case "$want" in
+      all) ;;
+      "$name") ;;
+      *) continue ;;
+    esac
+    if answering "$port" "$path"; then
+      echo "[stack]   $name : OK" >&2
+    elif bound "$port"; then
+      echo "[stack]   $name : DOWN (port $port is bound but not answering — it launched and crashed)" >&2
+    else
+      echo "[stack]   $name : DOWN (port $port not bound — it never launched)" >&2
+    fi
+  done
+  for log in "$LOGS/pb-backend.log" "$LOGS/web-dev.log" "$LOGS/admin-dev.log" "$LOGS/space-dev.log" "$LOGS/live-dev.log"; do
+    [ -f "$log" ] || continue
+    echo "[stack]   --- last 12 lines of $(basename "$log") ---" >&2
+    tail -12 "$log" | sed 's/^/[stack]   | /' >&2
+  done
+  echo "[stack] =========================" >&2
+  echo "[stack] full logs: $LOGS/" >&2
+}
+
+# A launcher whose `cd` failed can never answer. Fail immediately with the
+# report instead of burning the full 90-iteration budget (≈15 min) waiting for
+# a process that was never started.
+if [ "$LAUNCH_FAILED" = "1" ]; then
+  echo "[stack] one or more services failed to launch (see the FATAL lines above)" >&2
+  report_failure
+  exit 1
+fi
+
 if ! wait_for_services; then
   # A frontend whose typegen died on `EPERM rmdir .react-router/types/...`
   # leaves a bound-but-dead port. Restart just those, once, and wait again —
@@ -263,7 +369,8 @@ if ! wait_for_services; then
     fi
   done
   if ! wait_for_services; then
-    echo "[stack] TIMED OUT waiting for services; check tests/logs/*.log" >&2
+    echo "[stack] TIMED OUT waiting for services." >&2
+    report_failure
     exit 1
   fi
 fi

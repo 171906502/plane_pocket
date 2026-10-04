@@ -6,10 +6,17 @@
 import { chromium } from "playwright-core";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = "C:\\Users\\cao\\Desktop\\asl-work\\plane_pocket\\plane-pocketbase\\tests";
+// Derived from this file's own location (…/tests/browser/lib.mjs) rather than
+// hardcoded, so a clone in another directory works. Was
+// "C:\\Users\\cao\\Desktop\\asl-work\\plane_pocket\\plane-pocketbase\\tests".
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.dirname(HERE);
 
-export const EDGE = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+export const EDGE =
+  process.env.PLANE_EDGE ||
+  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 export const PROFILE = path.join(ROOT, "browser", "profile");
 export const SHOTS = path.join(ROOT, "evidence", "screenshots");
 export const NETLOG = path.join(ROOT, "evidence", "network.log");

@@ -22,7 +22,7 @@ set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PB="$(cd "$HERE/../.." && pwd)"
-NODE="/c/Users/cao/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe"
+NODE="${PLANE_NODE:-/c/Users/cao/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe}"
 export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
 LOGS="$PB/tests/logs"
 mkdir -p "$LOGS"
@@ -47,7 +47,15 @@ if [ "$FRESH" = "1" ]; then
 fi
 
 # ---------------------------------------------------------------- stack up
-bash "$HERE/start-stack.sh" all
+#
+# `start-stack.sh` now exits non-zero if any requested service fails to answer,
+# so this propagates instead of running the whole chain against a dead stack.
+# It used to print "all requested services are up" unconditionally, which meant
+# a launcher environment that started nothing still produced a green-looking run.
+if ! bash "$HERE/start-stack.sh" all; then
+  echo "[run-all] ABORT: start-stack.sh reported the stack is not up (exit $?)" >&2
+  exit 1
+fi
 
 # Wait for the stack to answer, then confirm the backend on a real route.
 #
@@ -93,7 +101,15 @@ for i in $(seq 1 60); do
   sleep 1
 done
 if [ "$ready" != "1" ]; then
-  echo "[run-all] services not all ready after 60s; continuing anyway (each run script gates on its own probes)" >&2
+  # This is a hard failure, not a warning. Each run script does gate on its own
+  # probes, but letting the chain proceed anyway means the failure surfaces as a
+  # confusing cascade of per-script timeouts instead of one clear "the stack is
+  # not up" line. Print what is actually answering so the cause is visible.
+  echo "[run-all] ABORT: services not all ready after 60s" >&2
+  echo "[run-all]   backend=$b web=$w admin=$a space=$s live=$l" >&2
+  echo "[run-all]   expected: backend=200 web=200 admin=200 space=302 live=404" >&2
+  echo "[run-all]   see $LOGS/stack-wait.log and $LOGS/run-all-wait.log" >&2
+  exit 1
 fi
 echo "[run-all] backend /api/instances/ -> $b"
 

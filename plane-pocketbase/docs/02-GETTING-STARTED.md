@@ -139,10 +139,25 @@ go test ./internal/router/ -run TestRoutePatternsAreAnchored -v
 
 ### 5.1 一键启动
 
+⚠️ **必须在 Git Bash 里跑，不能在 cmd.exe / PowerShell 里敲 `bash start-stack.sh`。**
+在 cmd/PowerShell 里 `bash` 会被解析成 `C:\Windows\System32\bash.exe`（**WSL 启动器**），
+它会报一堆 `mkdir: cannot create directory '/c': Permission denied` +
+`cd: /c/Users/...: No such file or directory`，**一个服务都起不来**。
+详见 [`06-PITFALLS.md`](06-PITFALLS.md) 的 **C-11**。
+
 ```bash
-cd plane-pocketbase/tests/browser
+# ✅ 方式一：打开「Git Bash」开始菜单项，然后
+cd /c/Users/cao/Desktop/asl-work/plane_pocket/plane-pocketbase/tests/browser
 bash start-stack.sh all
 ```
+
+```bash
+# ✅ 方式二：从任何 shell 显式调用 Git Bash
+"C:\Program Files\Git\bin\bash.exe" -lc "cd /c/Users/cao/Desktop/asl-work/plane_pocket/plane-pocketbase/tests/browser && bash start-stack.sh all"
+```
+
+脚本会自己判断环境：进错 shell 会**立刻退出并打印正确命令**（退出码 3），
+不会再有"假成功"。
 
 它会拉起五个服务并把日志写到 `plane-pocketbase/tests/logs/`：
 
@@ -156,8 +171,31 @@ bash start-stack.sh all
 
 也可以只起单个：`bash start-stack.sh backend|web|admin|space|live`
 
-**启动耗时**：正常情况下约 2 秒。**如果它耗时以分钟计，说明踩了坑** —— 立刻看
-[`06-PITFALLS.md`](06-PITFALLS.md) 里的 `curl -o /dev/null` 与 `bound vs answering` 两节。
+**启动耗时**：正常情况下约 2 秒（Vite 首次编译时 5–6 秒）。**如果它耗时以分钟计，
+说明踩了坑** —— 立刻看 [`06-PITFALLS.md`](06-PITFALLS.md) 里的 `curl -o /dev/null`
+与 `bound vs answering` 两节。
+
+**退出码是可信的**：脚本只在所有请求的服务真正响应时才返回 0。
+失败时会打印 `===== FAILURE REPORT =====`，逐个说明端口是「没被占用（从未启动）」
+还是「被占用但不响应（启动中崩了）」，并附日志末尾。失败时也可以自查：
+
+```bash
+for p in 8000 3000 3001 3002 3100; do
+  curl -s -o /dev/null -w "port $p -> %{http_code}\n" --noproxy '*' --max-time 5 "http://127.0.0.1:$p/"
+done
+# 期望：8000→200  3000→200  3001→200  3002→302  3100→404
+```
+
+**启动行为的审计线**：`tests/logs/stack-wait.log` 记录每一轮的逐服务探测结果，
+例如
+
+```
+t=1 backend=OK web=FAIL(7) admin=FAIL(7) space=FAIL(7) live=FAIL(7) ok=0
+t=5 backend=OK web=OK      admin=OK      space=OK      live=FAIL(7) ok=0
+t=6 backend=OK web=OK      admin=OK      space=OK      live=OK      ok=1
+```
+
+`FAIL(7)` = 连接被拒（还没起来）；`FAIL(28)` = 超时（Vite 正在编译）。
 
 ### 5.2 前端 API 地址是怎么配的
 

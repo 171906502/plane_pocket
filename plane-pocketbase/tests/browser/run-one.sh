@@ -9,7 +9,7 @@ set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PB="$(cd "$HERE/../.." && pwd)"
-NODE="/c/Users/cao/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe"
+NODE="${PLANE_NODE:-/c/Users/cao/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe}"
 LOGS="$PB/tests/logs"
 export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
 mkdir -p "$LOGS"
@@ -17,7 +17,7 @@ mkdir -p "$LOGS"
 SCRIPT="$1"; shift || true
 [ -z "${SCRIPT:-}" ] && { echo "usage: run-one.sh <script.mjs> [args]" >&2; exit 2; }
 
-bash "$HERE/start-stack.sh" all
+bash "$HERE/start-stack.sh" all || { echo "[run-one] ABORT: stack did not come up" >&2; exit 1; }
 
 # Generous per-probe timeout: the Vite dev servers compile on first request and
 # can take >2s to answer, which made a 2s probe report a healthy server as down.
@@ -32,10 +32,19 @@ case "$(uname -s 2>/dev/null)" in
 esac
 up() { curl -s --noproxy '*' --max-time 10 -o "$NULL_DEV" "http://127.0.0.1:$1${2:-/}"; }
 echo "[run-one] waiting for services..."
+# `ready` is tracked explicitly. The old form just `break`-ed out of the loop
+# and then printed "services ready after ${i}s" unconditionally — so a run where
+# nothing ever answered still announced success with i=120.
+ready=0
 for i in $(seq 1 120); do
-  up 8000 && up 3000 && up 3001 && up 3002 && up 3100 /live/ && break
+  if up 8000 && up 3000 && up 3001 && up 3002 && up 3100 /live/; then ready=1; break; fi
   sleep 1
 done
+if [ "$ready" != "1" ]; then
+  echo "[run-one] ABORT: services not answering after 120s" >&2
+  echo "[run-one]   see $LOGS/stack-wait.log and $LOGS/*-dev.log" >&2
+  exit 1
+fi
 echo "[run-one] services ready after ${i}s"
 
 script_win="$(cygpath -w "$HERE/$SCRIPT" 2>/dev/null || echo "$HERE/$SCRIPT")"
