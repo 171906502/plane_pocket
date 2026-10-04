@@ -197,7 +197,49 @@ t=6 backend=OK web=OK      admin=OK      space=OK      live=OK      ok=1
 
 `FAIL(7)` = 连接被拒（还没起来）；`FAIL(28)` = 超时（Vite 正在编译）。
 
-### 5.2 前端 API 地址是怎么配的
+### 5.2 停止整个栈
+
+```bash
+cd plane-pocketbase/tests/browser
+bash stop-stack.sh                 # 停全部
+bash stop-stack.sh web             # 只停 web
+bash stop-stack.sh backend web     # 停指定的几个
+```
+
+**为什么需要一个停止脚本**：`start-stack.sh` 用 `nohup … &` + `disown` 启动服务，
+服务**故意活得比启动它的 shell 久**。所以**关掉终端并不会停掉它们** ——
+进程还在，端口还占着。没有显式 stop 的话，下次 `start-stack.sh` 会复用旧服务，
+或者为端口打架；而一个启动中崩掉的 dev server 会留下**端口被占但不响应**的僵尸。
+
+设计要点（与 `start-stack.sh` 同一套约定）：
+
+- **按端口杀，不按进程名杀**。`taskkill /IM node.exe` 会误杀机器上**所有** node 进程
+  （包括 agent 自己的工具）。3000–3002 / 3100 / 8000 才是我们的。
+- 用 `taskkill //PID <pid> //T //F`：`//T` 连**进程树**一起杀。Vite dev server 和
+  live 的 node 服务都会 fork 子进程，只杀监听者会留下孤儿进程占着端口。
+- **杀完复查端口是否真空了**。静默失败的 kill 比不 kill 更糟 ——
+  下次启动会以 `EADDRINUSE` 失败，而原因看不见。
+
+输出示例：
+
+```
+[stop-stack] backend  : port 8000 held by pid(s) 25052  (answering=yes) — killing
+[stop-stack] backend  : stopped (port 8000 free)
+...
+[stop-stack] stopped=5  already-stopped=0  failed=0
+[stop-stack] all requested services are stopped
+```
+
+`answering=yes/no` 用于区分「正常服务」和「僵尸（端口被占但不响应）」。
+有端口没杀干净时 **exit 1** 并列出残留端口 —— 退出码可信，与 `start-stack.sh` 一致。
+
+手动复查：
+
+```bash
+netstat -ano | grep LISTENING | grep -E ':(8000|3000|3001|3002|3100) '
+```
+
+### 5.3 前端 API 地址是怎么配的
 
 前端**不知道**后端在哪，靠 `.env`：
 
@@ -221,7 +263,7 @@ plane-preview/apps/web/.env
 > ```
 > 不生成的话前端不知道后端地址，会直接落到错误边界。
 
-### 5.3 CORS 的 origin 是硬约束
+### 5.4 CORS 的 origin 是硬约束
 
 后端启动时 `--origins` 必须**精确列出**前端的地址：
 
@@ -235,7 +277,7 @@ plane-preview/apps/web/.env
 
 改了前端端口 → 必须同步改 `--origins`（在 `start-stack.sh` 的 `ORIGINS` 变量里）。
 
-### 5.4 首次账号初始化
+### 5.5 首次账号初始化
 
 1. 打开 `http://localhost:3001/god-mode/`（admin 端）
 2. 完成实例管理员的初始化注册
@@ -244,7 +286,7 @@ plane-preview/apps/web/.env
 
 > 自动化版本：`bash run-all.sh --fresh` 会从空库跑完整个链路（见 [`05-TESTING.md`](05-TESTING.md)）。
 
-### 5.5 `apps/live` 与 Redis
+### 5.6 `apps/live` 与 Redis
 
 `apps/live` 是富文本编辑器背后的 Yjs 协作服务，**Page（页面）功能依赖它**。
 

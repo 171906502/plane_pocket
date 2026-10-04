@@ -145,6 +145,10 @@ cd tests/browser
 bash run-one.sh verify-profile.mjs        # 或你新写的验证脚本
 ```
 
+> 单点迭代时如果只想重启**某一个**服务（例如只改了前端、不想动后端），
+> 用 `bash stop-stack.sh web && bash start-stack.sh web`。
+> 服务是 `disown` 起的，改完代码不会自动重启，也不会因为你关终端而停。
+
 然后在 `tests/logs/pb-backend.log` 里确认：
 
 ```

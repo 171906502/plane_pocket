@@ -117,7 +117,27 @@ bash run-one.sh recon.mjs
 
 只起栈 + 跑一个脚本。用于 recon → 修 → 重跑的紧凑循环，不用付 1–4 轮的钱。
 
-### 4.4 recon 脚本（探测用）
+### 4.4 `start-stack.sh` / `stop-stack.sh` —— 起栈与停栈
+
+```bash
+bash start-stack.sh all            # 起全部（backend/web/admin/space/live）
+bash start-stack.sh backend        # 只起一个
+bash stop-stack.sh                 # 停全部
+bash stop-stack.sh web             # 只停一个
+```
+
+**`stop-stack.sh` 不是可有可无的**：服务是用 `nohup … &` + `disown` 起的，
+**故意活得比 shell 久**，所以**关掉终端不会停掉它们**。没有 stop 的话，
+下次起栈会复用旧服务或为端口打架，而启动中崩掉的 dev server 会留下
+「端口被占但不响应」的僵尸。
+
+停止脚本按**端口**杀（不按进程名，否则会误杀机器上所有 node 进程），
+用 `taskkill //PID <pid> //T //F` 连**进程树**一起杀（Vite/live 都会 fork），
+杀完**复查端口是否真空**，有残留则 exit 1。
+
+> 📖 与之配套的坑：C-11（假成功 / WSL）、C-12（`|| echo 000` 把死服务判成活的）。
+
+### 4.5 recon 脚本（探测用）
 
 `tests/browser/recon*.mjs` 是一组**侦察脚本**，不是断言套件：
 

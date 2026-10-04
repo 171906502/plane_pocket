@@ -46,9 +46,17 @@ cd tests/browser && bash start-stack.sh all
 
 # 5. 验证
 curl -s -o NUL -w '%{http_code}\n' http://127.0.0.1:8000/api/instances/   # 期望 200
+
+# 6. 用完停掉（服务是 disown 起的，关终端不会停它们）
+bash stop-stack.sh
 ```
 
+> ⚠️ 必须在 **Git Bash** 里跑。在 cmd.exe / 另一个 shell 里敲 `bash`
+> 会被解析成 WSL 启动器，报一堆 `cd: No such file or directory`。
+> 详见 [`docs/06-PITFALLS.md`](docs/06-PITFALLS.md) §C-11。
+
 然后浏览器打开 <http://localhost:3001/god-mode/> 完成实例初始化，再打开 <http://localhost:3000/>。
+`localhost` 与 `127.0.0.1` 两种写法都已放进后端 `--origins`，随便用哪个都行。
 
 > ⚠️ 在 Git Bash 里**不要**写 `curl -o /dev/null`（会静默退出 23）。用 `-o NUL`。见 [`docs/06-PITFALLS.md`](docs/06-PITFALLS.md) C-1。
 

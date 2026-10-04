@@ -709,6 +709,57 @@ done
 
 ---
 
+### C-12 ⭐ `curl` 检测存活的 `|| echo 000` 写法会把死服务判成活的
+
+**症状**：脚本报告 `answering=yes` / 服务「正常」，但实际端口是死的
+（`curl` 拿不到任何响应）。诊断信息把人往错方向带。
+本项目是在写 `stop-stack.sh` 时实测撞到的 —— 一个只 `listen` 从不响应的
+僵尸进程被判成 `answering=yes`。
+
+**根因**：`curl -w '%{http_code}'` 在**连接失败**时会把 `000` **写到 stdout**，
+**然后**以非零码退出。于是这个常见写法会得到两个 `000`：
+
+```bash
+# ❌ 错误
+code=$(curl -s -o "$NULL_DEV" -w '%{http_code}' --max-time 3 "http://..." || echo 000)
+# 连接失败时 code="000000"（curl 的 000 + fallback 的 000）
+[ "$code" != "000" ] && ...   # "000000" != "000" 成立 → 误判为存活
+```
+
+实测证据：
+
+```
+code=[000000]   length=6
+→ "BUG CONFIRMED: reports answering=yes for a dead port"
+```
+
+**修法**：把**退出码**和**输出**分开判断，不要用 `|| echo 000` 兜底。
+
+```bash
+# ✅ 正确
+was_answering() {
+  local code status
+  code=$(curl -s -o "$NULL_DEV" -w '%{http_code}' --noproxy '*' --max-time 3 "http://127.0.0.1:$1${2:-/}" 2>/dev/null)
+  status=$?
+  [ "$status" -eq 0 ] && [ "$code" != "000" ] && [ -n "$code" ]
+}
+```
+
+（`start-stack.sh` 的 `answering()` 本来就没有 `|| echo 000`，所以是对的 ——
+这个坑是**新写脚本时抄错**引入的。）
+
+**如何自查**：故意探测一个没人监听的端口，打印变量内容与长度：
+
+```bash
+code=$(curl -s -o NUL -w '%{http_code}' --max-time 3 http://127.0.0.1:9999/ || echo 000)
+echo "code=[$code]"          # 期望 [000]；若是 [000000] 就是踩了这个坑
+```
+
+**推广**：任何 `cmd=$(...) || fallback` 的写法都要怀疑
+「命令**既输出又失败**」的情况。`curl -w` 就是典型。
+
+---
+
 ## D 类 · 前端契约
 
 ### D-1 ⭐⭐ 前端会把失败渲染成「看起来正常」的状态
@@ -898,6 +949,47 @@ origin 的 `/god-mode/`，断言**没有**渲染失败视图 + `/api/instances/`
 **修法**：**运行 `apps/live`**（需要 Redis）。
 live 服务在，编辑器保持 `connected`，就不会走 fallback。
 
+**⚠ 第二个独立原因：live 自己的 CORS 白名单。**
+即使 live 起来了，`apps/live/src/server.ts` 的 `setupCors()` 也会按
+`CORS_ALLOWED_ORIGINS` 逐个核对 Origin —— 不在名单里就连 WebSocket 都握不上手，
+**症状与「live 没起来」一样**（编辑器退回 fallback）。
+
+实测过的一个真实缺陷：`apps/live/.env` 里只有
+
+```
+CORS_ALLOWED_ORIGINS="http://localhost:3000"
+```
+
+即**只放行 web**。于是：
+
+| Origin | 结果 |
+|---|---|
+| `http://localhost:3000` | ✅ 放行 |
+| `http://localhost:3002`（**space**） | ❌ **完全没有 ACO 头** |
+| `http://127.0.0.1:3000` | ❌ 被拒 |
+
+而 **space 恰恰是展示「已发布页面」的地方** —— 富文本编辑器正是在那里用的，
+所以这个缺陷会直接打断 space 的页面渲染。
+
+**修法**：列出**所有会嵌入编辑器**的前端（web `3000` / admin `3001` / space `3002`），
+且每个都给 `localhost` 与 `127.0.0.1` 两种写法，与后端 `--origins` 保持同一套值。
+
+另注：`apps/live/.env.example`（**被跟踪的模板**）里**根本没有
+`CORS_ALLOWED_ORIGINS`**，`src/env.ts` 默认值是 `""` → `origin: false` →
+**一个 origin 都不放行**。新 clone 从 `.env.example` 生成 `.env` 后必须自己补这一项。
+
+**复验**：
+
+```bash
+for o in http://localhost:3000 http://localhost:3002 http://127.0.0.1:3000; do
+  echo -n "$o -> "
+  curl -s -i -H "Origin: $o" http://127.0.0.1:3100/live/ \
+    | grep -i '^access-control-allow-origin:' | tr -d '\r' || echo "<none: REJECTED>"
+done
+```
+
+`/live/` 返回 404 是设计如此；这里只看**有没有 ACO 头**。
+
 ---
 
 ### D-10 `page_id` 之前的接口形状容易想当然
@@ -1026,12 +1118,15 @@ mv X "X.bak-$(date +%s)" && mkdir -p X
 | **`cd: /c/Users/...: No such file or directory`（5 个 cd 全失败）** | **C-11** |
 | **脚本报 `all requested services are up` 但一个服务都没起来** | **C-11** |
 | `services ready after 120s` 但端口全空 | **C-11** |
+| **`|| echo 000` 把死服务判成存活（`code="000000"`）** | **C-12** |
+| **关掉终端后服务还在（端口没释放）** | **C-11 / 用 `stop-stack.sh`** |
 | 前端全白 "Plane didn't start up correctly"，日志无请求 | **D-8** |
 | **admin 报 "unable to fetch the details of the instance"（换 hostname 就好）** | **D-8** |
 | **`127.0.0.1:3001` 失败但 `localhost:3001` 正常** | **D-8** |
 | 页面正常但内容是空的 | **D-1** |
 | 照隔壁接口写，前端渲染错 | **D-2** |
 | Pages 编辑器无限循环 | **D-9** |
+| **space 页面编辑器连不上 live（live 明明起着）** | **D-9**（live 的 CORS 白名单） |
 | 测试脚本挂住不返回 | **E-4** |
 
 ---
