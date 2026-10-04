@@ -90,7 +90,16 @@ LOGS="$PB/tests/logs"
 mkdir -p "$LOGS"
 : > "$LOGS/stack-wait.log"   # see wait_for_services() below
 
-ORIGINS="http://localhost:3000,http://localhost:3001,http://localhost:3002"
+# Every origin the frontends can realistically be opened on.
+#
+# `127.0.0.1` and `localhost` are DIFFERENT origins to a browser even though they
+# resolve to the same host. Opening the admin at http://127.0.0.1:3001 while this
+# list only has http://localhost:3001 means PocketBase sends no
+# `Access-Control-Allow-Origin` at all, the credentialed request is rejected, and
+# the admin renders "We were unable to fetch the details of the instance."
+# List both forms for every frontend port.
+ORIGINS="http://localhost:3000,http://localhost:3001,http://localhost:3002,\
+http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:3002"
 
 # NEVER write `curl -o /dev/null` here.
 #

@@ -835,25 +835,55 @@ if scope.WorkspaceRole >= RoleAdmin && scope.ProjectMember != nil
 
 ---
 
-### D-8 CORS：`--origins` 必填且不能通配
+### D-8 CORS：`--origins` 必填、不能通配、且必须**列全 hostname 变体**
 
-**症状**：前端报 **"Plane didn't start up correctly"** 错误边界，
+**症状 A**：前端报 **"Plane didn't start up correctly"** 错误边界，
 而**后端日志里一个 API 调用都没有**。
 
-**根因**：没传 `--origins`（默认 `[*]`）。前端 axios 配了 `withCredentials: true`，
-浏览器在**带凭证模式**下**拒绝 `*` 通配 origin**。
+**症状 B**（同一条 CORS 规则的另一种表现，容易漏判）：
+**admin 打开 `http://127.0.0.1:3001/god-mode/` 显示
+"We were unable to fetch the details of the instance."**（`components/instance/failure.tsx`），
+但 **`http://localhost:3001/god-mode/` 完全正常**。
+用 curl 直接打 `/api/instances/` 也是 200，所以很容易误判成"后端坏了"。
 
-**修法**：精确列出前端 origin
+**根因**：没传 `--origins`（默认 `[*]`），或**列表没列全前端可能的 hostname**。
+前端 axios 配了 `withCredentials: true`，浏览器在**带凭证模式**下
+**拒绝 `*` 通配 origin**，也拒绝 origin 不匹配的响应。
+
+关键事实：**`127.0.0.1` 与 `localhost` 在浏览器眼里是两个不同的 origin**，
+尽管它们解析到同一台主机。只列 `localhost:3001` 时，从 `127.0.0.1:3001` 发出的请求
+拿不到 `Access-Control-Allow-Origin`，axios 抛错 →
+`instance.store.ts` 的 `fetchInstanceInfo` catch 分支设置 `error` →
+页面渲染 `InstanceFailureView`。**后端完全无辜。**
+
+**验证方法**（一眼看出区别）：
+
+```bash
+# 有 ACO 头 = 放行；没有 = 被拒
+curl -s -i -H "Origin: http://127.0.0.1:3001" http://127.0.0.1:8000/api/instances/ | grep -i '^access-control-allow-origin:'
+```
+
+**修法**：精确列出前端 origin，**且每个端口都给出 `localhost` 与 `127.0.0.1` 两种写法**。
 
 ```
---origins="http://localhost:3000,http://localhost:3001,http://localhost:3002"
+--origins="http://localhost:3000,http://localhost:3001,http://localhost:3002,\
+http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:3002"
 ```
 
-改前端端口 → 必须同步改这个列表。
+改前端端口 → 必须同步改这个列表。已固化在 `start-stack.sh` 的 `ORIGINS`。
 
 **相关**：`Access-Control-Allow-Credentials: true` 必须由**我们的中间件**注入，
 且必须在 PocketBase 内建 CORS 中间件（优先级 -1041）**之前**（-1042）——
 因为内建中间件在 preflight 时直接返回 204，**不调用任何后续中间件**。
+
+**陷阱旁注**：admin 上 `GET /api/instances/admins/me/` 返回 **403 是正确行为**
+（Django 侧 `InstanceAdminUserMeEndpoint.permission_classes = [InstanceAdminPermission]`，
+未登录即 403）。不要看到 403 就当成未实现接口去"修"——
+未登录状态下 `admins/me/` 本就应该 403，而 `/api/instances/` 应 200。
+
+**回归脚本**：`tests/browser/verify-admin-origins.mjs` —— 真浏览器分别打开两个
+origin 的 `/god-mode/`，断言**没有**渲染失败视图 + `/api/instances/` 返回 200
+（断言内容，不是"页面没崩"）。
 
 ---
 
@@ -997,6 +1027,8 @@ mv X "X.bak-$(date +%s)" && mkdir -p X
 | **脚本报 `all requested services are up` 但一个服务都没起来** | **C-11** |
 | `services ready after 120s` 但端口全空 | **C-11** |
 | 前端全白 "Plane didn't start up correctly"，日志无请求 | **D-8** |
+| **admin 报 "unable to fetch the details of the instance"（换 hostname 就好）** | **D-8** |
+| **`127.0.0.1:3001` 失败但 `localhost:3001` 正常** | **D-8** |
 | 页面正常但内容是空的 | **D-1** |
 | 照隔壁接口写，前端渲染错 | **D-2** |
 | Pages 编辑器无限循环 | **D-9** |
