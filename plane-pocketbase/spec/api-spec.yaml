@@ -7,7 +7,7 @@ method: Paths extracted programmatically from all urls.py files; methods/view_cl
   (plus apps/web for direct fetch calls).
 auth_values: session=CSRF+cookie (main UI) | api_token=Bearer (api/v1) | public=no auth | admin=instance superuser
 summary:
-  total_endpoints: 391
+  total_endpoints: 395
   called_by_frontend_true: 247
   excluded_true: 26
   by_group:
@@ -15,7 +15,7 @@ summary:
     asset: 18
     auth: 37
     cycle: 15
-    dashboard: 1
+    dashboard: 5
     favorite: 5
     instance: 14
     intake: 9
@@ -2459,6 +2459,67 @@ endpoints:
     confidence: medium
     request_shape: null
     response_shape: single dashboard object
+  # ---------------------------------------------------------------------------
+  # The four entries below are the paths the WEB APP actually calls for the home
+  # dashboard. They have NO Django view and NO Django URL in this checkout
+  # (verified: no dashboard model in apps/api/plane/db/models/, and
+  # apps/api/plane/app/urls/user.py only registers
+  # "users/me/workspaces/<slug>/dashboard/" — the `dashboard.list` entry above).
+  # Their shapes were derived from the frontend's own types:
+  #   packages/types/src/dashboard.ts:184  THomeDashboardResponse = {dashboard, widgets}
+  #   packages/types/src/dashboard.ts:170  TDeprecatedDashboard
+  #   packages/types/src/dashboard.ts:66   TWidget
+  # Backing tables `dashboards` + `dashboard_widgets` are created by
+  # pb_migrations/1759000013_init_dashboards.go.
+  # ---------------------------------------------------------------------------
+  - id: dashboard.home.list
+    path: "/api/workspaces/{slug}/dashboard/"
+    methods: [GET]
+    group: dashboard
+    auth: session
+    view_class: null
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: "query: dashboard_type=home"
+    response_shape: "{ dashboard: TDeprecatedDashboard, widgets: TWidget[] }"
+  - id: dashboard.home.widget-stats
+    path: "/api/workspaces/{slug}/dashboard/{dashboard_id}/"
+    methods: [GET]
+    group: dashboard
+    auth: session
+    view_class: null
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: "query: widget_key (+ target_date/issue_type/cursor/per_page per widget)"
+    response_shape: TWidgetStatsResponse (union — varies by widget_key)
+  - id: dashboard.widget-stats
+    path: "/api/dashboard/{dashboard_id}/"
+    methods: [GET]
+    group: dashboard
+    auth: session
+    view_class: null
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: "query: widget_key (+ target_date/issue_type/cursor/per_page per widget)"
+    response_shape: TWidgetStatsResponse (union — varies by widget_key)
+  - id: dashboard.widget.update
+    path: "/api/dashboard/{dashboard_id}/widgets/{widget_id}/"
+    methods: [PATCH]
+    group: dashboard
+    auth: session
+    view_class: null
+    called_by_frontend: true
+    excluded: false
+    exclusion_reason: null
+    confidence: low
+    request_shape: "partial TWidget: { is_visible?, filters? }"
+    response_shape: single TWidget object
   - id: view.list_create
     path: "/api/workspaces/{slug}/projects/{project_id}/views/"
     methods: [GET, POST]
