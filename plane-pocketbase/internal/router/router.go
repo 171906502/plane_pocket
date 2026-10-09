@@ -74,6 +74,12 @@ func Register(app core.App) {
 			{"search", RegisterSearch},
 			{"admin", RegisterAdmin},
 			{"publicapi", RegisterPublicAPI},
+			// Added ahead of Wave 2 by the orchestrator: the three domains
+			// below had no registrar entry, and adding one is an
+			// orchestrator-only change (this table is a shared file).
+			{"dashboard", RegisterDashboard},
+			{"estimate", RegisterEstimate},
+			{"config", RegisterConfig},
 		}
 		for _, r := range registrars {
 			if err := r.fn(e, app); err != nil {
