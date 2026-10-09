@@ -9,7 +9,9 @@ set -u
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PB="$(cd "$HERE/../.." && pwd)"
-NODE="${PLANE_NODE:-/c/Users/cao/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe}"
+# shellcheck source=node-env.sh
+. "$HERE/node-env.sh"
+resolve_node
 LOGS="$PB/tests/logs"
 export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
 mkdir -p "$LOGS"

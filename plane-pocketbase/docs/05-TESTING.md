@@ -117,14 +117,24 @@ bash run-one.sh recon.mjs
 
 只起栈 + 跑一个脚本。用于 recon → 修 → 重跑的紧凑循环，不用付 1–4 轮的钱。
 
-### 4.4 `start-stack.sh` / `stop-stack.sh` —— 起栈与停栈
+### 4.4 `stack.sh` —— 起栈 / 停栈 / 重启 / 重置
 
 ```bash
-bash start-stack.sh all            # 起全部（backend/web/admin/space/live）
-bash start-stack.sh backend        # 只起一个
-bash stop-stack.sh                 # 停全部
-bash stop-stack.sh web             # 只停一个
+bash stack.sh start   [服务...]    # 起全部（backend/web/admin/space/live），或指定的几个
+bash stack.sh stop    [服务...]    # 停
+bash stack.sh restart [服务...]    # 先停后起；停失败就不起（避免复用死端口）
+bash stack.sh status               # 只读探测：UP / DEAD / down
+bash stack.sh reset   [--start]    # 清库（两次确认 + 自动备份），见 02 §5.2.1
 ```
+
+`stack.sh` **只做转发**，实现分别在 `start-stack.sh` / `stop-stack.sh` /
+`reset-data.sh`；底层脚本参数相同，也可以直接用。之所以不让它自己实现一遍：
+`start-stack.sh` 里塞满了踩出来的约定（CORS origins、`curl -o /dev/null` 的坑、
+「崩了但端口还占着」的判定），**复制一份就等于埋一个会漂移的副本**。
+
+`run-all.sh` / `run-one.sh` 里跑的 Node 由 `node-env.sh` 的 `resolve_node()` 解析
+（不是硬编码路径）—— 托管运行时目录名带版本后缀，升级后会变，写死会让
+`apps/live` 静默起不来，见 C-13。
 
 **`stop-stack.sh` 不是可有可无的**：服务是用 `nohup … &` + `disown` 起的，
 **故意活得比 shell 久**，所以**关掉终端不会停掉它们**。没有 stop 的话，
@@ -135,7 +145,8 @@ bash stop-stack.sh web             # 只停一个
 用 `taskkill //PID <pid> //T //F` 连**进程树**一起杀（Vite/live 都会 fork），
 杀完**复查端口是否真空**，有残留则 exit 1。
 
-> 📖 与之配套的坑：C-11（假成功 / WSL）、C-12（`|| echo 000` 把死服务判成活的）。
+> 📖 与之配套的坑：C-11（假成功 / WSL）、C-12（`|| echo 000` 把死服务判成活的）、
+> C-13（硬编码工具链路径会随版本升级失效）。
 
 ### 4.5 recon 脚本（探测用）
 

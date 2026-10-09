@@ -42,14 +42,46 @@ go test ./internal/router/ -run TestRoutePatternsAreAnchored
 ./.fe.exe migrate up --dir=./.tmp-verify
 
 # 4. 起全套服务（后端 8000 / web 3000 / admin 3001 / space 3002 / live 3100）
-cd tests/browser && bash start-stack.sh all
+cd tests/browser && bash stack.sh start
 
-# 5. 验证
+# 5. 看状态 / 验证
+bash stack.sh status
 curl -s -o NUL -w '%{http_code}\n' http://127.0.0.1:8000/api/instances/   # 期望 200
 
 # 6. 用完停掉（服务是 disown 起的，关终端不会停它们）
-bash stop-stack.sh
+bash stack.sh stop
 ```
+
+### 栈管理：`stack.sh`
+
+`tests/browser/stack.sh` 是唯一的入口，它只做转发，真正的实现在
+`start-stack.sh` / `stop-stack.sh` / `reset-data.sh` 里：
+
+```bash
+bash stack.sh start   [backend|web|admin|space|live ...]   # 不写服务名 = 全部
+bash stack.sh stop    [服务...]
+bash stack.sh restart [服务...]        # 先停后起；停失败就不起，避免复用死端口
+bash stack.sh status                   # 只读探测，UP / DEAD / down
+bash stack.sh logs    [服务]
+bash stack.sh reset   [--start]        # 清库，见下
+```
+
+`status` 区分三种状态：`UP`（在答）、`DEAD`（端口被占但没人答 = dev server 起崩了）、
+`down`（端口空着）。**"端口被占用"不等于"服务可用"**，见 `docs/06-PITFALLS.md`。
+
+### 重置数据库：`stack.sh reset`
+
+```bash
+bash stack.sh reset          # 交互式，问两次
+bash stack.sh reset --start  # 清完顺手把栈起回来
+```
+
+- **两次确认**：第一次要手打 `reset`，第二次要照着屏幕输入一个**当场随机生成**的
+  6 位码。随机码是防"回车习惯"和防复制粘贴的，脚本里**没有** `--force` 之类跳过确认的开关。
+- **不删数据**：旧库整体 `mv` 到 `_scratch/db-backups/.fe-run-<时间戳>/`，随时可搬回来。
+- **先停栈**：SQLite 文件被后端占着时 Windows 不允许移动，所以会先停栈；停不掉就整体中止。
+- 非终端环境（管道 / CI / agent 沙箱）直接拒绝执行。
+- 想非交互地拿一个空库，用 `bash run-all.sh --fresh`。
 
 > ⚠️ 必须在 **Git Bash** 里跑。在 cmd.exe / 另一个 shell 里敲 `bash`
 > 会被解析成 WSL 启动器，报一堆 `cd: No such file or directory`。
@@ -101,7 +133,7 @@ plane_pocket/
 | 端到端主流程 | ✅ 已在真实浏览器中从空库跑通全链路 |
 | 已注册路由 | 258 个模式 |
 | 未覆盖接口 | **73 个**（约 20 个按方案剔除 / 约 30 个整模块未做 / 约 24 个边角操作） |
-| 已修缺陷 | 21 个 |
+| 已修缺陷 | 22 个 |
 | 前端代码改动 | **0 行** |
 | 生产就绪 | ⚠️ **未就绪**，见 [`docs/04-DEPLOYMENT.md`](docs/04-DEPLOYMENT.md) §9 |
 

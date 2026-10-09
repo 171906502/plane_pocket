@@ -760,6 +760,65 @@ echo "code=[$code]"          # 期望 [000]；若是 [000000] 就是踩了这个
 
 ---
 
+### C-13 ⭐ 硬编码的工具链路径会随版本升级**静默**失效
+
+**症状**：`bash stack.sh start` 的输出最上面混着这么一行
+
+```
+[start-stack] WARNING: NODE=.../node/versions/22.22.2-3/node.exe is not executable; apps/live will fail to start
+```
+
+然后 `live` 起不来。**它不是立刻报错，而是先等满 90 轮、再等满一轮重启重试**，
+最后才以 `TIMED OUT` + `FAILURE REPORT` 收场 —— 而**唯一的线索就是开头那一行 WARNING**。
+（`start all` 因为 `live` 在等待清单里，最终会 exit 1；但排查时你看到的是一份
+「4 个服务都 OK、只有 live DOWN」的报告，很难联想到是**路径**问题。）
+
+真正昂贵的后果不在启动阶段：`apps/live` 是 Pages 富文本编辑器的协作后端，
+缺了它编辑器会退化成 `usePageFallback`，在 `.../pages/<id>/description/` 上
+**无限 PATCH/GET 打转**（见 **D-9**）。所以这行 WARNING 的代价是"某天编辑器开始抽风"。
+
+**根因**：托管 Node 运行时放在**带版本后缀**的目录里，后缀每次升级都会变：
+
+```
+/c/Users/cao/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe   ← 脚本里写死的（已不存在）
+/c/Users/cao/.workbuddy-ai/binaries/node/versions/22.22.2-6/node.exe   ← 实际存在的
+```
+
+`start-stack.sh` / `run-all.sh` / `run-one.sh` 三个脚本都写死了 `22.22.2-3`。
+运行时一升级，路径就悬空了。而当时 `start-stack.sh` 只是 `echo` 一行警告继续往下跑 ——
+**它警告的对象恰好就是它自己即将做错的事**，可没人会去读那一行。
+
+**修法**：不要写死，去解析。`tests/browser/node-env.sh` 提供 `resolve_node()`：
+
+```bash
+. "$HERE/node-env.sh"
+resolve_node          # 设置 $NODE
+```
+
+优先级：`$PLANE_NODE`（显式覆盖）→ `versions/` 下**版本号最大**的 → `versions/current`
+→ PATH 上的 `node` → Windows 默认安装位置。
+
+**两个自己踩到的细节**：
+
+- 必须用 `sort -V`（**版本序**）。普通字典序会把 `22.22.2-10` 排在 `22.22.2-6`
+  **前面**，`tail -1` 于是取到**更旧**的运行时 —— 升级一次反而回退一次。
+- 解析结果要拼上 `/node.exe`。第一版 `resolve_node` 返回的是**目录**，
+  而 `[ -x <目录> ]` 是**真**的，直到真的去执行才报 `Is a directory`。
+  **所以"解析成功"必须以真的跑一次 `"$NODE" --version` 为证**，不能只看 `[ -x ]`。
+
+**如何自查**：
+
+```bash
+bash -c '. tests/browser/node-env.sh; resolve_node; echo "$NODE"; "$NODE" --version'
+# 期望：打印一个存在的 node.exe 路径 + 一个版本号（如 v22.22.2）
+```
+
+**推广**：**凡是"外部工具的位置"，都不要写死路径。** 版本化目录（node/python/go 的
+托管运行时）、`node_modules/.bin`、临时目录，都属于这一类。写死路径的代价不是立刻报错，
+而是**某天悄悄少起一个服务**，然后在离根因很远的地方（这里是编辑器死循环）表现出来。
+
+---
+
 ## D 类 · 前端契约
 
 ### D-1 ⭐⭐ 前端会把失败渲染成「看起来正常」的状态
@@ -1119,7 +1178,12 @@ mv X "X.bak-$(date +%s)" && mkdir -p X
 | **脚本报 `all requested services are up` 但一个服务都没起来** | **C-11** |
 | `services ready after 120s` 但端口全空 | **C-11** |
 | **`|| echo 000` 把死服务判成存活（`code="000000"`）** | **C-12** |
+| **`WARNING: NODE=... is not executable; apps/live will fail to start`** | **C-13** |
+| **起栈等满 90 轮最后 TIMED OUT，只有 live 起不来** | **C-13** |
+| **Pages 编辑器无限循环（先确认 live 到底起没起）** | **C-13 / D-9** |
 | **关掉终端后服务还在（端口没释放）** | **C-11 / 用 `stop-stack.sh`** |
+| 忘了怎么起 / 停 / 重启 / 看状态 | 用 `stack.sh`，见 [02 §5.2](02-GETTING-STARTED.md) |
+| 想清空数据库重来 | `bash stack.sh reset`，见 [02 §5.2.1](02-GETTING-STARTED.md) |
 | 前端全白 "Plane didn't start up correctly"，日志无请求 | **D-8** |
 | **admin 报 "unable to fetch the details of the instance"（换 hostname 就好）** | **D-8** |
 | **`127.0.0.1:3001` 失败但 `localhost:3001` 正常** | **D-8** |

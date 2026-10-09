@@ -62,6 +62,8 @@
 | 游标分页 / 分组分页 | ✅ `serializers/pagination.go` |
 | 静态缺口审计工具 | ✅ `tests/browser/audit-endpoints.py` |
 | 浏览器验收链路（6 脚本） | ✅ `tests/browser/run*.mjs` |
+| 栈管理脚本（起 / 停 / 重启 / 状态 / 重置） | ✅ `tests/browser/stack.sh`（转发到 `start-stack.sh` / `stop-stack.sh` / `reset-data.sh`） |
+| Node 运行时解析（不写死版本化路径） | ✅ `tests/browser/node-env.sh`，见 `06-PITFALLS.md` **C-13** |
 | 测试报告与证据存档 | ✅ 30 张截图 + 网络日志 |
 
 ### 2.2 功能域
@@ -170,7 +172,7 @@
 
 ---
 
-## 4. 21 个已修缺陷索引
+## 4. 22 个已修缺陷索引
 
 > 完整叙事（症状 / 根因 / 修法 / 证据）见 `tests/WORKFLOW_TEST_REPORT.md`。
 > 这里只做索引，方便快速定位。
@@ -198,6 +200,7 @@
 | 19 | `workspace-members/me/` 缺失 → 全屏 "Not Authorized!" | 被 #17 掩盖 |
 | 20 | `states` / `user-properties` / `sidebar-preferences` 缺失 | 被 #17 掩盖 |
 | 21 | `home-preferences/` 缺失 → 首页挂件全部消失 | 被 #17 掩盖 + 前端渲染成"正常" |
+| 22 | 脚本写死 Node 版本化路径 → `apps/live` 静默起不来 | 见 **C-13**；后果是 Pages 编辑器无限循环（#10） |
 
 **从这 21 个缺陷提炼出的五条结论**（值得所有后来者记住）：
 

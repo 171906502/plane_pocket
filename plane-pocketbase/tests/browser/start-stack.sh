@@ -82,9 +82,13 @@ PB="$(cd "$HERE/../.." && pwd)"
 ROOT="$(cd "$PB/.." && pwd)"
 FE="$ROOT/plane-preview"
 
-# Node is a fixed toolchain path; allow an override for other machines.
-NODE="${PLANE_NODE:-/c/Users/cao/.workbuddy-ai/binaries/node/versions/22.22.2-3/node.exe}"
-[ -x "$NODE" ] || echo "[start-stack] WARNING: NODE=$NODE is not executable; apps/live will fail to start" >&2
+# Resolve the Node toolchain instead of hardcoding it — the managed runtime
+# lives in a versioned directory that changes on every upgrade, and a stale
+# literal here silently disabled apps/live (see node-env.sh for the full story).
+# shellcheck source=node-env.sh
+. "$HERE/node-env.sh"
+resolve_node
+[ -n "$NODE" ] || echo "[start-stack] WARNING: no usable node; apps/live will not start" >&2
 
 LOGS="$PB/tests/logs"
 mkdir -p "$LOGS"

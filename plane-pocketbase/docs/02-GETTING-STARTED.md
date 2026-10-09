@@ -139,7 +139,7 @@ go test ./internal/router/ -run TestRoutePatternsAreAnchored -v
 
 ### 5.1 一键启动
 
-⚠️ **必须在 Git Bash 里跑，不能在 cmd.exe / PowerShell 里敲 `bash start-stack.sh`。**
+⚠️ **必须在 Git Bash 里跑，不能在 cmd.exe / PowerShell 里敲 `bash stack.sh`。**
 在 cmd/PowerShell 里 `bash` 会被解析成 `C:\Windows\System32\bash.exe`（**WSL 启动器**），
 它会报一堆 `mkdir: cannot create directory '/c': Permission denied` +
 `cd: /c/Users/...: No such file or directory`，**一个服务都起不来**。
@@ -148,12 +148,12 @@ go test ./internal/router/ -run TestRoutePatternsAreAnchored -v
 ```bash
 # ✅ 方式一：打开「Git Bash」开始菜单项，然后
 cd /c/Users/cao/Desktop/asl-work/plane_pocket/plane-pocketbase/tests/browser
-bash start-stack.sh all
+bash stack.sh start
 ```
 
 ```bash
 # ✅ 方式二：从任何 shell 显式调用 Git Bash
-"C:\Program Files\Git\bin\bash.exe" -lc "cd /c/Users/cao/Desktop/asl-work/plane_pocket/plane-pocketbase/tests/browser && bash start-stack.sh all"
+"C:\Program Files\Git\bin\bash.exe" -lc "cd /c/Users/cao/Desktop/asl-work/plane_pocket/plane-pocketbase/tests/browser && bash stack.sh start"
 ```
 
 脚本会自己判断环境：进错 shell 会**立刻退出并打印正确命令**（退出码 3），
@@ -169,7 +169,7 @@ bash start-stack.sh all
 | space | `3002` | `/` | 公开只读项目视图 |
 | live | `3100` | `/live/` | Yjs 协作编辑服务。**`/live/` 返回 404 是设计如此** |
 
-也可以只起单个：`bash start-stack.sh backend|web|admin|space|live`
+也可以只起单个：`bash stack.sh start backend`（或 `web` / `admin` / `space` / `live`）
 
 **启动耗时**：正常情况下约 2 秒（Vite 首次编译时 5–6 秒）。**如果它耗时以分钟计，
 说明踩了坑** —— 立刻看 [`06-PITFALLS.md`](06-PITFALLS.md) 里的 `curl -o /dev/null`
@@ -197,13 +197,35 @@ t=6 backend=OK web=OK      admin=OK      space=OK      live=OK      ok=1
 
 `FAIL(7)` = 连接被拒（还没起来）；`FAIL(28)` = 超时（Vite 正在编译）。
 
-### 5.2 停止整个栈
+### 5.2 停止 / 重启 / 状态 / 重置
+
+日常操作用 `stack.sh`。它是**唯一入口，只做转发** —— 真正的实现在
+`start-stack.sh` / `stop-stack.sh` / `reset-data.sh` 里，所以不存在两份实现要同步的问题。
 
 ```bash
 cd plane-pocketbase/tests/browser
-bash stop-stack.sh                 # 停全部
-bash stop-stack.sh web             # 只停 web
-bash stop-stack.sh backend web     # 停指定的几个
+bash stack.sh status               # 只读探测：UP / DEAD / down
+bash stack.sh stop                 # 停全部
+bash stack.sh stop web             # 只停 web
+bash stack.sh stop backend web     # 停指定的几个
+bash stack.sh restart backend      # 先停后起（改后端时最常用）
+bash stack.sh logs backend         # 看日志尾巴
+```
+
+`status` 的三种状态必须分清 —— **「端口被占用」不等于「服务可用」**：
+
+| 状态 | 含义 | 怎么办 |
+|---|---|---|
+| `UP` | 端口有人占，且真的在答 | 正常 |
+| `DEAD` | 端口被占，但**没人答** —— dev server 起崩了 | `bash stack.sh restart <服务>` |
+| `down` | 端口空着 | `bash stack.sh start <服务>` |
+
+底层的三个脚本参数相同，也可以直接用：
+
+```bash
+bash stop-stack.sh                 # 等价于 stack.sh stop
+bash start-stack.sh all            # 等价于 stack.sh start
+bash reset-data.sh                 # 等价于 stack.sh reset
 ```
 
 **为什么需要一个停止脚本**：`start-stack.sh` 用 `nohup … &` + `disown` 启动服务，
@@ -238,6 +260,32 @@ bash stop-stack.sh backend web     # 停指定的几个
 ```bash
 netstat -ano | grep LISTENING | grep -E ':(8000|3000|3001|3002|3100) '
 ```
+
+#### 5.2.1 重置数据库
+
+```bash
+bash stack.sh reset            # 交互式，问两次
+bash stack.sh reset --start    # 清完顺手把栈起回来
+```
+
+**两次确认，都不能跳过**：
+
+1. 手打单词 `reset`；
+2. 照着屏幕输入一个**当场随机生成**的 6 位码。
+
+第二步的随机码是关键：它防的是「回车习惯」和「从上次会话复制粘贴」。
+脚本里**故意没有** `--force` / `--yes` 这类开关 —— 有了它，它迟早会进 shell
+history 或 CI 配置，那两次确认就白做了。
+
+- **不删数据**：旧库整体 `mv` 到 `_scratch/db-backups/.fe-run-<时间戳>/`，
+  想回退就把目录搬回 `.fe-run/`。
+- **先停栈**：SQLite 文件被后端占着时 Windows 不允许 `mv`（共享冲突），
+  所以先停栈；**停不掉就整体中止，一个文件都不动**。
+- **非终端环境直接拒绝**：管道 / CI / agent 沙箱里 `stdin` 不是 TTY，
+  脚本以退出码 2 拒绝执行。想在非交互场景拿一个空库，用
+  `bash run-all.sh --fresh`（它有自己的一套语义，且不假装在交互）。
+- 重置后**账号也没了** —— 需要重新到 <http://localhost:3001/god-mode/> 做实例初始化，
+  再去 <http://localhost:3000> 注册。
 
 ### 5.3 前端 API 地址是怎么配的
 
@@ -417,10 +465,11 @@ go test ./internal/router/ -run TestRoutePatternsAreAnchored
 
 # 6. 起栈
 cd tests/browser
-bash start-stack.sh all
+bash stack.sh start
 
 # 7. 验证
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/api/instances/   # 期望 200
+bash stack.sh status
+curl -s -o NUL -w '%{http_code}\n' http://127.0.0.1:8000/api/instances/   # 期望 200
 # 然后浏览器打开 http://localhost:3001/god-mode/ 做实例初始化
 ```
 
