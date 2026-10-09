@@ -57,7 +57,7 @@ dialog=true url=http://localhost:3000/hrms/
     <button> Add sticky
     <button type=button> 
     <button type=button id=base-ui-_r_2v_> Change cover
-    <button type=button id=base-ui-_r_31_> 🎓
+    <button type=button id=base-ui-_r_31_> ⌚
     <input type=text id=name name=name ph="Project name"> Project name
     <input type=text id=identifier name=identifier ph="Project ID"> Project ID
     <textarea id=description name=description ph="Description"> Description
@@ -116,7 +116,7 @@ dialog=true url=http://localhost:3000/hrms/
     <button> Add sticky
     <button type=button> 
     <button type=button id=base-ui-_r_2v_> Change cover
-    <button type=button id=base-ui-_r_31_> 🎓
+    <button type=button id=base-ui-_r_31_> ⌚
     <input type=text id=name name=name ph="Project name"> hrms
     <input type=text id=identifier name=identifier ph="Project ID"> HRMS
     <textarea id=description name=description ph="Description"> HRMS 项目：用于验证 Plane + PocketBase 全链路。
@@ -147,8 +147,8 @@ url=http://localhost:3000/hrms/
     <a> Projects
     <button type=button id=extended-sidebar-toggle> More
     <button type=button> Projects
-    <a> 🎓 hrms
-    <button type=button> 🎓 hrms
+    <a> ⌚ hrms
+    <button type=button> ⌚ hrms
     <button type=button id=base-ui-_r_3j_> 
     <button type=button id=base-ui-_r_16_> Community
     <button type=button> 
@@ -162,8 +162,8 @@ url=http://localhost:3000/hrms/
     <a> Projects
     <button type=button id=extended-sidebar-toggle> More
     <button type=button> Projects
-    <a> 🎓 hrms
-    <button type=button> 🎓 hrms
+    <a> ⌚ hrms
+    <button type=button> ⌚ hrms
     <button type=button id=base-ui-_r_3t_> 
     <button type=button id=base-ui-_r_1i_> Community
     <button type=button> Manage widgets
@@ -179,7 +179,7 @@ url=http://localhost:3000/hrms/
     <button type=button> Close
     <a type=button> Open project
 
-===== run2-project  (2026-10-03T07:17:17.017Z) =====
+===== run2-project  (2026-10-09T16:26:05.100Z) =====
 -- FAILED REQUESTS --
 404  GET    /api/workspaces/hrms/quick-links/
 404  GET    /api/workspaces/hrms/quick-links/
@@ -188,23 +188,23 @@ url=http://localhost:3000/hrms/
 -- MUTATIONS --
 200  PATCH  /api/users/me/tour-completed/
 200  POST   /api/assets/v2/workspaces/hrms/
-200  POST   /api/assets/v2/upload/ed82064c-75ce-4118-b4d7-f755bdf1b096/
-204  PATCH  /api/assets/v2/workspaces/hrms/ed82064c-75ce-4118-b4d7-f755bdf1b096/
+200  POST   /api/assets/v2/upload/e348627a-f79a-49c2-b5d9-3d7fd0764f13/
+204  PATCH  /api/assets/v2/workspaces/hrms/e348627a-f79a-49c2-b5d9-3d7fd0764f13/
 201  POST   /api/workspaces/hrms/projects/
-204  POST   /api/assets/v2/workspaces/hrms/projects/5273f83c-f839-4159-8faa-eee59958a91e/5273f83c-f839-4159-8faa-eee59958a91e/bulk/
-200  PATCH  /api/workspaces/hrms/projects/5273f83c-f839-4159-8faa-eee59958a91e/
+204  POST   /api/assets/v2/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/bef44785-df97-41de-b520-e8ff8f25fbe4/bulk/
+200  PATCH  /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/
 
 -- API READS (deduped, query strings kept) --
 200  GET    /api/instances/
 200  GET    /api/users/me/
-200  GET    /api/users/me/settings/
 200  GET    /api/users/me/profile/
+200  GET    /api/users/me/settings/
 200  GET    /api/users/me/workspaces/
 200  GET    /api/users/me/workspaces/hrms/project-roles/
-200  GET    /api/workspaces/hrms/members/
 200  GET    /api/workspaces/hrms/projects/
-200  GET    /api/workspaces/hrms/states/
+200  GET    /api/workspaces/hrms/members/
 200  GET    /api/workspaces/hrms/workspace-members/me/
+200  GET    /api/workspaces/hrms/states/
 200  GET    /api/workspaces/hrms/sidebar-preferences/
 200  GET    /api/workspaces/hrms/user-properties/
 200  GET    /api/workspaces/hrms/users/notifications/unread/

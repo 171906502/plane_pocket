@@ -376,11 +376,60 @@ await waitForShell(page, 60000);
 await waitNoSpinner(page, 30000);
 await settle(page, 1000, 15000);
 const assignedText = await safeText(page);
-check(
-  "assigned-issues tab renders",
-  !/Runtime Error|Cannot read properties of undefined/i.test(assignedText) && assignedText.length > 200,
-  assignedText.slice(0, 200).replace(/\s+/g, " ")
+
+// The assigned tab is driven by GET /api/workspaces/{slug}/user-issues/{userId}/.
+//
+// The assertion here used to be `assignedText.length > 200` — which passes on a
+// COMPLETELY EMPTY list. That is precisely the "the frontend renders a failure as
+// a normal-looking state" trap (docs/06-PITFALLS.md D-1): the page looked fine
+// while the list was blank, and the missing endpoint stayed invisible.
+// So assert the DATA, not the pixel count — and then assert the data reached the DOM.
+// Probe with the SAME query the frontend actually sends. The assigned tab
+// filters by `assignees=<userId>` (verified from the recorded network log:
+// `user-issues/<id>/?order_by=sort_order&sub_issue=false&...&assignees=<id>`).
+// Probing the bare path instead returns creator/subscriber matches too, so the
+// check would pass while the rendered tab was still empty — a false green.
+const assignedApi = await probe(
+  `/api/workspaces/${SLUG}/user-issues/${userId}/?assignees=${userId}&sub_issue=false&per_page=100`
 );
+check(
+  "assigned tab: /user-issues/ API returns 200",
+  assignedApi.status === 200,
+  `status=${assignedApi.status} head=${String(assignedApi.head).slice(0, 120)}`
+);
+
+const assignedTotal = assignedApi.json?.total_count ?? 0;
+check(
+  "assigned tab: /user-issues/ reports at least one issue",
+  assignedTotal > 0,
+  `total_count=${assignedTotal}`
+);
+
+const assignedResults = Array.isArray(assignedApi.json?.results) ? assignedApi.json.results : [];
+check(
+  "assigned tab: results array is populated",
+  assignedResults.length > 0,
+  `results.length=${assignedResults.length}`
+);
+
+check(
+  "assigned tab renders without a runtime error",
+  !/Runtime Error|Cannot read properties of undefined/i.test(assignedText),
+  assignedText.slice(0, 160).replace(/\s+/g, " ")
+);
+
+// The strongest available check: the issue title returned by the API must
+// actually appear on the rendered page. This is what "the list is no longer
+// empty" means in practice, and it cannot pass on a blank list.
+const firstIssueName = assignedResults[0]?.name ?? "";
+check(
+  "assigned tab: the returned issue title is actually rendered",
+  firstIssueName.length > 0 && assignedText.includes(firstIssueName),
+  firstIssueName
+    ? `looking for "${firstIssueName}"`
+    : "API returned no issue name to look for"
+);
+
 await shot(page, "verify-profile-assigned", "个人资料页 — assigned 标签");
 
 writeNet(net, "verify-profile");

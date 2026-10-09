@@ -3,6 +3,7 @@
 //
 //	GET/POST      …/projects/{project_id}/views/              (IssueViewViewSet)
 //	GET/PUT/PATCH/DELETE …/projects/{project_id}/views/{pk}/
+//	GET           …/projects/{project_id}/views/{view_id}/issues/ (paginated)
 //	POST          …/projects/{project_id}/project-views/      (ProjectUserViewsEndpoint)
 //	GET/POST      …/projects/{project_id}/user-favorite-views/ (IssueViewFavoriteViewSet)
 //	DELETE        …/projects/{project_id}/user-favorite-views/{view_id}/
@@ -25,6 +26,7 @@ import (
 	"database/sql"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/pocketbase/dbx"
@@ -116,6 +118,63 @@ func (h *Handler) ProjectUpdate(e *core.RequestEvent) error {
 // ProjectDestroy serves DELETE …/projects/{project_id}/views/{pk}/.
 func (h *Handler) ProjectDestroy(e *core.RequestEvent) error {
 	return h.destroyView(e, true)
+}
+
+// ProjectIssues serves GET …/projects/{project_id}/views/{view_id}/issues/ —
+// the issues a saved project view selects, in the same cursor-paginated
+// envelope as the project issue list (`results` = IssueSerializer objects).
+//
+// The view's stored `filters` JSON is translated onto a PocketBase filter on a
+// best-effort basis: keys that map to a plain column or a resolvable UUID list
+// (priority / state / created_by / sub_issue) are honoured, while the
+// join-based keys (assignees / labels / cycle / module / subscriber) are
+// skipped rather than risking an invalid filter expression.
+func (h *Handler) ProjectIssues(e *core.RequestEvent) error {
+	scope := middleware.ScopeOf(e)
+	user := middleware.CurrentUser(e)
+	if scope == nil || scope.Project == nil {
+		return serializers.NotFound(e, "")
+	}
+	if user == nil {
+		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
+	}
+
+	view, err := serializers.FindByUUID(h.App, "issue_views", e.Request.PathValue("view_id"))
+	if err != nil || view == nil ||
+		view.GetString("project") != scope.Project.Id ||
+		view.GetString("workspace") != scope.Workspace.Id ||
+		view.GetString("deleted_at") != "" {
+		return serializers.NotFound(e, "The required object does not exist.")
+	}
+	// A view is visible to its owner or when it is public (access=1).
+	if view.GetString("owned_by") != user.Id && view.GetInt("access") != 1 {
+		return serializers.NotFound(e, "The required object does not exist.")
+	}
+
+	filter := "project = {:project} && deleted_at = '' && archived_at = '' && is_draft = false && state.group != \"triage\""
+	params := dbx.Params{"project": scope.Project.Id}
+	// A guest without guest_view_all_features sees only the issues they created.
+	if scope.ProjectRole == middleware.RoleGuest && !scope.Project.GetBool("guest_view_all_features") {
+		filter += " && created_by = {:user}"
+		params["user"] = user.Id
+	}
+	filter = applyViewIssueFilters(h.App, view, filter, params)
+
+	perPage, cursor := serializers.ListParams(e, serializers.MaxPerPage)
+	envelope, err := serializers.Paginate(h.App, serializers.ListQuery{
+		Collection: "issues",
+		Filter:     filter,
+		Params:     params,
+		Sort:       issueOrderBy(e.Request.URL.Query().Get("order_by")),
+		PerPage:    perPage,
+		Cursor:     cursor,
+	}, func(issue *core.Record) any {
+		return serializers.Issue(h.App, issue)
+	})
+	if err != nil {
+		return err
+	}
+	return e.JSON(http.StatusOK, envelope)
 }
 
 // ---------------------------------------------------------------------------
@@ -525,6 +584,101 @@ func viewOrderBy(param string) string {
 	default:
 		return "-created_at"
 	}
+}
+
+// issueOrderBy maps Plane's `order_by` values onto a PocketBase sort expression
+// for the issues collection.
+func issueOrderBy(param string) string {
+	switch param {
+	case "created_at":
+		return "created_at"
+	case "updated_at":
+		return "updated_at"
+	case "-updated_at":
+		return "-updated_at"
+	case "sort_order":
+		return "sort_order"
+	case "-sort_order":
+		return "-sort_order"
+	case "sequence_id":
+		return "sequence_id"
+	case "-sequence_id":
+		return "-sequence_id"
+	case "priority":
+		return "priority"
+	case "-priority":
+		return "-priority"
+	default:
+		return "-created_at"
+	}
+}
+
+// applyViewIssueFilters translates a saved view's `filters` JSON onto the
+// PocketBase filter. See ProjectIssues for which keys are honoured.
+func applyViewIssueFilters(app core.App, view *core.Record, filter string, params dbx.Params) string {
+	filters := map[string]any{}
+	if err := view.UnmarshalJSONField("filters", &filters); err != nil {
+		return filter
+	}
+	if values := filterStringList(filters["priority"]); len(values) > 0 {
+		filter += " && " + orEquals("priority", "pri", values, params)
+	}
+	if values := filterStringList(filters["state"]); len(values) > 0 {
+		if ids := resolveUUIDs(app, "states", values); len(ids) > 0 {
+			filter += " && " + orEquals("state", "state", ids, params)
+		}
+	}
+	if values := filterStringList(filters["created_by"]); len(values) > 0 {
+		if ids := resolveUUIDs(app, "users", values); len(ids) > 0 {
+			filter += " && " + orEquals("created_by", "creator", ids, params)
+		}
+	}
+	if sub, ok := filters["sub_issue"].(bool); ok && !sub {
+		filter += " && parent = ''"
+	}
+	return filter
+}
+
+// orEquals builds a PocketBase "col = {:p0} || col = {:p1} || …" expression and
+// binds the values under the given key prefix.
+func orEquals(column, prefix string, values []string, params dbx.Params) string {
+	parts := make([]string, 0, len(values))
+	for i, value := range values {
+		key := prefix + strconv.Itoa(i)
+		parts = append(parts, column+" = {:"+key+"}")
+		params[key] = value
+	}
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	return "(" + strings.Join(parts, " || ") + ")"
+}
+
+// filterStringList reads a JSON array of strings, ignoring non-string entries.
+func filterStringList(raw any) []string {
+	items, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if s, ok := item.(string); ok && s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// resolveUUIDs maps Plane UUIDs to PocketBase record ids for the given
+// collection, dropping any that do not resolve.
+func resolveUUIDs(app core.App, collection string, uuids []string) []string {
+	out := make([]string, 0, len(uuids))
+	for _, uuid := range uuids {
+		if record, _ := serializers.FindByUUID(app, collection, uuid); record != nil {
+			out = append(out, record.Id)
+		}
+	}
+	return out
 }
 
 // issueQueryFromFilters ports the POST branch of plane.utils.issue_filters: it

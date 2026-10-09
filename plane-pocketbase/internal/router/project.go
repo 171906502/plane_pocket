@@ -27,6 +27,16 @@ func registerProject(e *core.ServeEvent, app core.App) {
 	ws.GET("/projects/details/{$}", h.Details)
 	ws.POST("/projects/{$}", h.Create).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleMember))
 
+	// Project identifier availability check. NOTE: the web client calls this
+	// path WITHOUT a trailing slash (`project.service.ts`), unlike almost every
+	// other Plane route, so the bare spelling is registered as well as the
+	// Django-style trailing-slash one. A path with no trailing slash is already
+	// an exact ServeMux match, so it needs no `{$}`.
+	ws.GET("/project-identifiers", h.ProjectIdentifiers).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleMember))
+	ws.POST("/project-identifiers", h.ProjectIdentifiers).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleMember))
+	ws.GET("/project-identifiers/{$}", h.ProjectIdentifiers).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleMember))
+	ws.POST("/project-identifiers/{$}", h.ProjectIdentifiers).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleMember))
+
 	proj := ws.Group("/projects/{project_id}").BindFunc(middleware.ResolveProject(app))
 	// `{$}` anchors these to `/projects/{project_id}/` exactly. A bare "/" would
 	// make them subtree patterns that answer any unregistered project sub-path
@@ -38,6 +48,15 @@ func registerProject(e *core.ServeEvent, app core.App) {
 	proj.DELETE("/{$}", h.Delete).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
 	proj.GET("/states/{$}", h.States)
 	proj.GET("/labels/{$}", h.Labels)
+
+	// Archive the project (ProjectArchiveUnarchiveEndpoint.post). ADMIN or
+	// MEMBER, matching Django's @allow_permission.
+	proj.POST("/archive/{$}", h.Archive).BindFunc(middleware.RequireProjectRole(middleware.RoleMember))
+
+	// Mark a state as the project default (StateViewSet.mark_as_default).
+	// Django restricts this to project ADMIN.
+	proj.POST("/states/{state_id}/mark-default/{$}", h.MarkDefault).
+		BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
 
 	// Project sub-resources the web app loads on every project page. `{$}`
 	// anchors each pattern to the exact path: without it the trailing slash

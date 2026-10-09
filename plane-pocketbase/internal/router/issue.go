@@ -24,4 +24,19 @@ func registerIssue(e *core.ServeEvent, app core.App) {
 	proj.GET("/issues/{pk}/{$}", h.Detail)
 	proj.PATCH("/issues/{pk}/{$}", h.Update)
 	proj.DELETE("/issues/{pk}/{$}", h.Delete)
+
+	// Bulk mutations and the archive/deleted/meta views.
+	proj.POST("/bulk-archive-issues/{$}", h.BulkArchive)
+	proj.DELETE("/bulk-delete-issues/{$}", h.BulkDelete)
+	proj.POST("/bulk-operation-issues/{$}", h.BulkOperation)
+	proj.POST("/bulk-subscribe-issues/{$}", h.BulkSubscribe)
+	proj.GET("/deleted-issues/{$}", h.DeletedIssues)
+	proj.GET("/archived-issues/{$}", h.ArchivedIssues)
+	proj.GET("/issues/{pk}/meta/{$}", h.Meta)
+
+	// Workspace-level: the profile page's Assigned / Created / Subscribed tabs
+	// (WorkspaceUserProfileIssuesEndpoint). It is not project-scoped, so it
+	// hangs off the workspace group rather than `proj`.
+	ws := workspaceGroup(e, app)
+	ws.GET("/user-issues/{user_id}/{$}", h.UserIssues)
 }

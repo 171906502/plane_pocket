@@ -3,13 +3,17 @@
 //	GET       …/pages-summary/                     (stats object)
 //	GET/POST  …/pages/                             (plain array / create)
 //	GET/PATCH/DELETE …/pages/{page_id}/
+//	GET       …/favorite-pages/                    (plain array)
 //	POST/DELETE …/favorite-pages/{page_id}/
+//	GET       …/archived-pages/                    (plain array)
 //	POST/DELETE …/pages/{page_id}/archive/         (archive / unarchive)
 //	POST/DELETE …/pages/{page_id}/lock/            (lock / unlock)
 //	POST      …/pages/{page_id}/access/
+//	POST      …/pages/{page_id}/move/
 //	GET/PATCH …/pages/{page_id}/description/       (binary stream / patch)
 //	GET       …/pages/{page_id}/versions/          (plain array)
 //	GET       …/pages/{page_id}/versions/{pk}/
+//	POST      …/pages/{page_id}/versions/{version_id}/restore/
 //	POST      …/pages/{page_id}/duplicate/
 //
 // `{page_id}`/`{pk}` are Plane UUIDs.
@@ -334,6 +338,30 @@ func (h *Handler) FavoriteDestroy(e *core.RequestEvent) error {
 	return e.NoContent(http.StatusNoContent)
 }
 
+// FavoriteList serves GET …/favorite-pages/ — the LIST half of the favourites
+// pair (PageFavoriteViewSet.list). The web app's `fetchFavorites` is typed as
+// `TPage[]`, so it is a plain array of PageSerializer objects, same shape as
+// `GET …/pages/`, restricted to the pages the caller has favourited in the
+// project and marked `is_favorite: true`.
+func (h *Handler) FavoriteList(e *core.RequestEvent) error {
+	scope := middleware.ScopeOf(e)
+	if scope == nil || scope.Project == nil {
+		return serializers.NotFound(e, "")
+	}
+	pages, err := h.listPages(e, scope)
+	if err != nil {
+		return err
+	}
+	favorites := h.favoriteIDs(e, scope)
+	results := make([]any, 0, len(favorites))
+	for _, page := range pages {
+		if favorites[serializers.UUID(page)] {
+			results = append(results, serializers.Page(h.App, page, true))
+		}
+	}
+	return e.JSON(http.StatusOK, results)
+}
+
 // Archive serves POST …/pages/{page_id}/archive/. Returns Plane's
 // {"archived_at": "<timestamp>"} body (200).
 func (h *Handler) Archive(e *core.RequestEvent) error {
@@ -390,6 +418,31 @@ func (h *Handler) Unarchive(e *core.RequestEvent) error {
 	}
 	h.setArchivedRecursive(page, time.Time{})
 	return e.NoContent(http.StatusNoContent)
+}
+
+// ArchivedList serves GET …/archived-pages/ — the "Archived" pages tab. The web
+// app's `fetchArchived` is typed as `TPage[]`, so it is a plain array of
+// PageSerializer objects, restricted to pages whose `archived_at` is set. It
+// reuses the same visibility scope as the main list (`listPages`), so a page
+// the caller may not see never leaks through the archive view.
+func (h *Handler) ArchivedList(e *core.RequestEvent) error {
+	scope := middleware.ScopeOf(e)
+	if scope == nil || scope.Project == nil {
+		return serializers.NotFound(e, "")
+	}
+	pages, err := h.listPages(e, scope)
+	if err != nil {
+		return err
+	}
+	favorites := h.favoriteIDs(e, scope)
+	results := make([]any, 0)
+	for _, page := range pages {
+		if page.GetString("archived_at") == "" {
+			continue
+		}
+		results = append(results, serializers.Page(h.App, page, favorites[serializers.UUID(page)]))
+	}
+	return e.JSON(http.StatusOK, results)
 }
 
 // Lock serves POST …/pages/{page_id}/lock/.
@@ -531,6 +584,45 @@ func (h *Handler) VersionDetail(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, serializers.PageVersionDetail(h.App, version))
 }
 
+// RestoreVersion serves POST …/pages/{page_id}/versions/{version_id}/restore/.
+// It copies the version's stored description back onto the page and answers 204
+// (the web client types `restoreVersion` as `Promise<void>`).
+//
+// Only the text/JSON payload is copied. `description_binary` is a per-record
+// protected file, so the version's stored filename cannot be pointed at from the
+// page record — the collaborative editor rewrites the binary on the next save,
+// which is exactly what the version-restore UI does (`handleRestoreVersion`
+// seeds the editor with `description_html` and lets the editor persist it).
+func (h *Handler) RestoreVersion(e *core.RequestEvent) error {
+	scope := middleware.ScopeOf(e)
+	if scope == nil || scope.Project == nil {
+		return serializers.NotFound(e, "")
+	}
+	user := middleware.CurrentUser(e)
+	if user == nil {
+		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
+	}
+	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	if err != nil {
+		return err
+	}
+	if page == nil {
+		return serializers.NotFound(e, "")
+	}
+	version, _ := serializers.FindByUUID(h.App, "page_versions", e.Request.PathValue("version_id"))
+	if version == nil || version.GetString("page") != page.Id {
+		return serializers.NotFound(e, "")
+	}
+	page.Set("description_json", version.Get("description_json"))
+	page.Set("description_html", version.GetString("description_html"))
+	page.Set("description_stripped", version.GetString("description_stripped"))
+	page.Set("updated_by", user.Id)
+	if err := h.App.Save(page); err != nil {
+		return serializers.Validation(e, "detail", err.Error())
+	}
+	return e.NoContent(http.StatusNoContent)
+}
+
 // Duplicate serves POST …/pages/{page_id}/duplicate/ (PageDuplicateEndpoint).
 // Returns 201 with the new page's PageDetailSerializer body.
 func (h *Handler) Duplicate(e *core.RequestEvent) error {
@@ -595,6 +687,107 @@ func (h *Handler) Duplicate(e *core.RequestEvent) error {
 		}
 	}
 	return e.JSON(http.StatusCreated, serializers.PageDetail(h.App, copy, false))
+}
+
+// Move serves POST …/pages/{page_id}/move/. The web client sends
+// `{ "new_project_id": "<uuid>" }` and treats the response as empty
+// (`Promise<void>`), so this answers 204.
+//
+// A page reaches a project through a `project_pages` link row, so moving means
+// retiring the link to the URL project and (re)activating one for the
+// destination project. The caller must be able to see the destination: an
+// active membership there, or a workspace Admin.
+func (h *Handler) Move(e *core.RequestEvent) error {
+	scope := middleware.ScopeOf(e)
+	if scope == nil || scope.Project == nil {
+		return serializers.NotFound(e, "")
+	}
+	user := middleware.CurrentUser(e)
+	if user == nil {
+		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
+	}
+	if scope.ProjectRole < middleware.RoleMember {
+		return serializers.Forbidden(e, "You do not have permission to perform this action.")
+	}
+	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	if err != nil {
+		return err
+	}
+	if page == nil {
+		return serializers.NotFound(e, "")
+	}
+
+	body := map[string]any{}
+	if err := e.BindBody(&body); err != nil {
+		return serializers.BadRequest(e, "Invalid request body.")
+	}
+	newProjectUUID := asString(body["new_project_id"])
+	if newProjectUUID == "" {
+		return serializers.Validation(e, "new_project_id", "This field is required.")
+	}
+	newProject, _ := serializers.FindByUUID(h.App, "projects", newProjectUUID)
+	if newProject == nil || newProject.GetString("workspace") != scope.Workspace.Id || newProject.GetString("deleted_at") != "" {
+		return serializers.NotFound(e, "")
+	}
+	if newProject.Id == scope.Project.Id {
+		// Already there — nothing to do, but do not 404: the client only wants
+		// the page gone from the old project's list.
+		return e.NoContent(http.StatusNoContent)
+	}
+	if !h.canReachProject(scope, user, newProject.Id) {
+		return serializers.NotFound(e, "")
+	}
+
+	if err := h.App.RunInTransaction(func(txApp core.App) error {
+		// Retire the active link to the URL project.
+		if link, _ := txApp.FindFirstRecordByFilter(
+			"project_pages",
+			"page = {:page} && project = {:project} && deleted_at = ''",
+			dbx.Params{"page": page.Id, "project": scope.Project.Id},
+		); link != nil {
+			link.Set("deleted_at", serializers.Now())
+			if err := txApp.Save(link); err != nil {
+				return err
+			}
+		}
+		// Reactivate a previous link to the destination, or create one.
+		if link, _ := txApp.FindFirstRecordByFilter(
+			"project_pages",
+			"page = {:page} && project = {:project}",
+			dbx.Params{"page": page.Id, "project": newProject.Id},
+		); link != nil {
+			link.Set("deleted_at", "")
+			return txApp.Save(link)
+		}
+		collection, err := txApp.FindCollectionByNameOrId("project_pages")
+		if err != nil {
+			return err
+		}
+		row := core.NewRecord(collection)
+		row.Set("uuid", serializers.NewUUID())
+		row.Set("workspace", scope.Workspace.Id)
+		row.Set("project", newProject.Id)
+		row.Set("page", page.Id)
+		row.Set("created_by", user.Id)
+		return txApp.Save(row)
+	}); err != nil {
+		return err
+	}
+	return e.NoContent(http.StatusNoContent)
+}
+
+// canReachProject reports whether the caller may target the given project: an
+// active membership row, or a workspace Admin.
+func (h *Handler) canReachProject(scope *middleware.Scope, user *core.Record, projectID string) bool {
+	if scope.WorkspaceRole >= middleware.RoleAdmin {
+		return true
+	}
+	member, err := h.App.FindFirstRecordByFilter(
+		"project_members",
+		"project = {:project} && member = {:member} && is_active = true && deleted_at = ''",
+		dbx.Params{"project": projectID, "member": user.Id},
+	)
+	return err == nil && member != nil
 }
 
 // ---------------------------------------------------------------------------

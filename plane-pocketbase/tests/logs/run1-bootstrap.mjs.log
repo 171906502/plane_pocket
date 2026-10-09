@@ -98,7 +98,7 @@ url=http://localhost:3000/hrms/
     <button type=button> 
     <button> Add sticky
 
-===== run1-bootstrap  (2026-10-03T07:16:43.017Z) =====
+===== run1-bootstrap  (2026-10-09T16:25:31.276Z) =====
 -- FAILED REQUESTS --
 404  GET    /site.webmanifest.json
 404  GET    /site.webmanifest.json
@@ -112,8 +112,8 @@ url=http://localhost:3000/hrms/
 
 -- MUTATIONS --
 302  POST   /api/instances/admins/sign-up/
-200  PATCH  /api/users/me/
 200  PATCH  /api/users/me/profile/
+200  PATCH  /api/users/me/
 200  PATCH  /api/users/me/profile/
 201  POST   /api/workspaces/
 200  PATCH  /api/users/me/profile/
@@ -132,16 +132,16 @@ url=http://localhost:3000/hrms/
 200  GET    /api/users/me/workspaces/
 404  GET    /api/users/me/workspaces/invitations/
 200  GET    /api/workspace-slug-check/?slug=hrms
-200  GET    /api/users/me/settings/?t=1791011790776
-200  GET    /api/users/me/workspaces/hrms/project-roles/
+200  GET    /api/users/me/settings/?t=1791563119134
 200  GET    /api/workspaces/hrms/projects/
+200  GET    /api/workspaces/hrms/states/
+200  GET    /api/users/me/workspaces/hrms/project-roles/
 200  GET    /api/workspaces/hrms/workspace-members/me/
 200  GET    /api/workspaces/hrms/members/
-200  GET    /api/workspaces/hrms/states/
-200  GET    /api/workspaces/hrms/user-properties/
 200  GET    /api/workspaces/hrms/sidebar-preferences/
-200  GET    /api/workspaces/hrms/user-favorites/?all=true
+200  GET    /api/workspaces/hrms/user-properties/
 200  GET    /api/workspaces/hrms/users/notifications/unread/
+200  GET    /api/workspaces/hrms/user-favorites/?all=true
 200  GET    /api/workspaces/hrms/home-preferences/
 404  GET    /api/workspaces/hrms/quick-links/
 200  GET    /api/workspaces/hrms/recent-visits/

@@ -68,6 +68,8 @@ func RegisterView(e *core.ServeEvent, app core.App) error {
 	proj.PUT("/views/{pk}/{$}", h.ProjectUpdate)
 	proj.PATCH("/views/{pk}/{$}", h.ProjectUpdate)
 	proj.DELETE("/views/{pk}/{$}", h.ProjectDestroy)
+	// The issues a saved view selects (web `view.service.ts` getViewIssues).
+	proj.GET("/views/{view_id}/issues/{$}", h.ProjectIssues)
 	proj.POST("/project-views/{$}", h.ProjectViewsUpdate)
 	proj.GET("/user-favorite-views/{$}", h.ViewFavoritesList)
 	proj.POST("/user-favorite-views/{$}", h.ViewFavoriteCreate)

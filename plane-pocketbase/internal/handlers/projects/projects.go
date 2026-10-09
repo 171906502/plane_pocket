@@ -3,6 +3,7 @@
 package projects
 
 import (
+	"database/sql"
 	"net/http"
 	"sort"
 	"strconv"
@@ -295,6 +296,42 @@ func (h *Handler) Delete(e *core.RequestEvent) error {
 	return e.NoContent(http.StatusNoContent)
 }
 
+// Archive serves POST /api/workspaces/{slug}/projects/{project_id}/archive/
+// (ProjectArchiveUnarchiveEndpoint.post): it stamps `archived_at`, hard-deletes
+// the project's favourites and answers 200 with the archived timestamp.
+//
+// Django returns `str(project.archived_at)` — a *timezone-aware* datetime, so
+// the string carries a trailing "+00:00" (unlike the page archive, which uses a
+// naive `datetime.now()`).
+func (h *Handler) Archive(e *core.RequestEvent) error {
+	scope := middleware.ScopeOf(e)
+	if scope == nil || scope.Project == nil {
+		return serializers.NotFound(e, "")
+	}
+	project := scope.Project
+	now := serializers.Now()
+	project.Set("archived_at", now)
+	if err := h.App.Save(project); err != nil {
+		return err
+	}
+
+	favorites, err := h.App.FindRecordsByFilter(
+		"user_favorites",
+		"workspace = {:workspace} && project = {:project}",
+		"", 0, 0,
+		dbx.Params{"workspace": scope.Workspace.Id, "project": project.Id},
+	)
+	if err == nil {
+		for _, favorite := range favorites {
+			_ = h.App.Delete(favorite)
+		}
+	}
+
+	return e.JSON(http.StatusOK, map[string]any{
+		"archived_at": now.Format("2006-01-02 15:04:05.000000") + "+00:00",
+	})
+}
+
 // States serves GET /api/workspaces/{slug}/projects/{project_id}/states/. Plane
 // returns a plain array ordered by `sequence`, with a computed `order` giving
 // each state's position within its group (StateViewSet.list).
@@ -344,6 +381,48 @@ func (h *Handler) States(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, results)
 }
 
+// MarkDefault serves POST
+// /api/workspaces/{slug}/projects/{project_id}/states/{state_id}/mark-default/
+// (StateViewSet.mark_as_default): it clears `default` on the project's states and
+// sets it on the target. Answers 204.
+func (h *Handler) MarkDefault(e *core.RequestEvent) error {
+	scope := middleware.ScopeOf(e)
+	if scope == nil || scope.Project == nil {
+		return serializers.NotFound(e, "")
+	}
+	state, err := serializers.FindByUUID(h.App, "states", e.Request.PathValue("state_id"))
+	if err != nil || state == nil || state.GetString("project") != scope.Project.Id {
+		return serializers.NotFound(e, "")
+	}
+
+	// Two bulk UPDATEs in Django: clear every default, then set the target.
+	// PocketBase's `default` is a bool column, so clear the currently-flagged
+	// rows and save the target.
+	current, err := h.App.FindRecordsByFilter(
+		"states",
+		"project = {:project} && default = true",
+		"", 0, 0,
+		dbx.Params{"project": scope.Project.Id},
+	)
+	if err != nil {
+		return err
+	}
+	for _, other := range current {
+		if other.Id == state.Id {
+			continue
+		}
+		other.Set("default", false)
+		if err := h.App.Save(other); err != nil {
+			return err
+		}
+	}
+	state.Set("default", true)
+	if err := h.App.Save(state); err != nil {
+		return err
+	}
+	return e.NoContent(http.StatusNoContent)
+}
+
 // Labels serves GET /api/workspaces/{slug}/projects/{project_id}/labels/.
 // NOTE: Plane's LabelViewSet is mounted at `…/issue-labels/`; this path follows
 // the endpoint list for this slice and returns the same LabelSerializer array,
@@ -367,6 +446,122 @@ func (h *Handler) Labels(e *core.RequestEvent) error {
 		results = append(results, serializers.Label(h.App, label))
 	}
 	return e.JSON(http.StatusOK, results)
+}
+
+// ProjectIdentifiers serves GET/POST /api/workspaces/{slug}/project-identifiers
+// (ProjectIdentifierEndpoint). NOTE: this path carries NO trailing slash in the
+// web client (`project.service.ts` `checkProjectIdentifierAvailability`), unlike
+// almost every other Plane route — the router registers both spellings so a
+// Django-shaped call still lands here.
+//
+// GET  ?name=PROJ → {"exists": n, "identifiers": [{"id","name","project"}]}
+// POST {name, project} → the created identifier (201), or the existing one (200)
+//
+// `id` is Django's BigAutoField integer primary key (the `legacy_pk` column),
+// not a UUID: this is the one collection without a `uuid` field.
+func (h *Handler) ProjectIdentifiers(e *core.RequestEvent) error {
+	scope := middleware.ScopeOf(e)
+	if scope == nil || scope.Workspace == nil {
+		return serializers.NotFound(e, "")
+	}
+	if e.Request.Method == http.MethodPost {
+		return h.createProjectIdentifier(e, scope)
+	}
+	return h.listProjectIdentifiers(e, scope)
+}
+
+// listProjectIdentifiers mirrors the GET branch: it upper-cases the `name`
+// query param, rejects an empty name with Django's exact 400 body, and returns
+// the matching identifiers plus their count.
+func (h *Handler) listProjectIdentifiers(e *core.RequestEvent, scope *middleware.Scope) error {
+	name := strings.ToUpper(strings.TrimSpace(e.Request.URL.Query().Get("name")))
+	if name == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"error": "Name is required"})
+	}
+	records, err := h.App.FindRecordsByFilter(
+		"project_identifiers",
+		"name = {:name} && workspace = {:workspace} && deleted_at = ''",
+		"", 0, 0,
+		dbx.Params{"name": name, "workspace": scope.Workspace.Id},
+	)
+	if err != nil {
+		return err
+	}
+	identifiers := make([]any, 0, len(records))
+	for _, record := range records {
+		identifiers = append(identifiers, projectIdentifierJSON(h.App, record))
+	}
+	return e.JSON(http.StatusOK, map[string]any{
+		"exists":      len(identifiers),
+		"identifiers": identifiers,
+	})
+}
+
+// createProjectIdentifier is the POST branch. The public Django API has no
+// create method here (identifiers are seeded when a project is created), so this
+// is idempotent: it returns the existing (name, project) row when present, and
+// otherwise creates one. See the report for the "inferred" flag.
+func (h *Handler) createProjectIdentifier(e *core.RequestEvent, scope *middleware.Scope) error {
+	body := map[string]any{}
+	if err := e.BindBody(&body); err != nil {
+		return serializers.BadRequest(e, "Invalid request body.")
+	}
+	name := strings.ToUpper(strings.TrimSpace(asString(body["name"])))
+	if name == "" {
+		return e.JSON(http.StatusBadRequest, map[string]any{"error": "Name is required"})
+	}
+	project, _ := serializers.FindByUUID(h.App, "projects", asString(body["project"]))
+	if project == nil || project.GetString("workspace") != scope.Workspace.Id {
+		return serializers.NotFound(e, "")
+	}
+	existing, _ := h.App.FindFirstRecordByFilter(
+		"project_identifiers",
+		"name = {:name} && workspace = {:workspace} && project = {:project} && deleted_at = ''",
+		dbx.Params{"name": name, "workspace": scope.Workspace.Id, "project": project.Id},
+	)
+	if existing != nil {
+		return e.JSON(http.StatusOK, projectIdentifierJSON(h.App, existing))
+	}
+
+	collection, err := h.App.FindCollectionByNameOrId("project_identifiers")
+	if err != nil {
+		return err
+	}
+	record := core.NewRecord(collection)
+	record.Set("legacy_pk", h.nextProjectIdentifierPK())
+	record.Set("name", name)
+	record.Set("workspace", scope.Workspace.Id)
+	record.Set("project", project.Id)
+	if user := middleware.CurrentUser(e); user != nil {
+		record.Set("created_by", user.Id)
+	}
+	if err := h.App.Save(record); err != nil {
+		return serializers.Validation(e, "name", err.Error())
+	}
+	return e.JSON(http.StatusCreated, projectIdentifierJSON(h.App, record))
+}
+
+// nextProjectIdentifierPK reproduces Django's BigAutoField allocation: the next
+// integer after the current maximum `legacy_pk`.
+func (h *Handler) nextProjectIdentifierPK() int {
+	var max sql.NullInt64
+	if err := h.App.DB().
+		NewQuery("SELECT MAX(legacy_pk) FROM project_identifiers").
+		Row(&max); err != nil || !max.Valid {
+		return 1
+	}
+	return int(max.Int64) + 1
+}
+
+// projectIdentifierJSON renders one ProjectIdentifier as Django's
+// `.values("id", "name", "project")`: `id` is the integer legacy PK and
+// `project` is the project's Plane UUID.
+func projectIdentifierJSON(app core.App, r *core.Record) map[string]any {
+	return map[string]any{
+		"id":      r.GetInt("legacy_pk"),
+		"name":    r.GetString("name"),
+		"project": serializers.RelationUUID(app, r, "project"),
+	}
 }
 
 // seedDefaultStates bulk-creates Plane's six default states for a new project.

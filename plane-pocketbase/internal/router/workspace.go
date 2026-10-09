@@ -53,4 +53,31 @@ func registerWorkspace(e *core.ServeEvent, app core.App) {
 	ws.GET("/user-profile/{user_id}/{$}", h.UserProfile)
 	ws.GET("/user-stats/{user_id}/{$}", h.UserStats)
 	ws.GET("/user-activity/{user_id}/{$}", h.UserActivity)
+
+	// Workspace-level work-item reads (cross-project).
+	//
+	// `/issues/` is WorkspaceViewIssuesViewSet.list (plane/app/urls/views.py).
+	// `/issues-detail/` and `/my-issues/` are frontend call sites with no Django
+	// view in this checkout; see the handler doc comments for how each shape was
+	// derived. All three are anchored so an unknown sibling path 404s instead of
+	// being answered with an issue list.
+	ws.GET("/issues/{$}", h.WorkspaceIssues)
+	ws.GET("/issues-detail/{$}", h.WorkspaceIssuesDetail)
+	ws.GET("/my-issues/{$}", h.MyIssues)
+
+	// Workspace labels (plane/app/views/workspace/label.py,
+	// WorkspaceLabelsEndpoint — GET only in Django). The mutating verbs reuse
+	// LabelSerializer so they stay wire-compatible; see handlers/workspaces/labels.go.
+	ws.GET("/labels/{$}", h.WorkspaceLabels)
+	ws.POST("/labels/{$}", h.WorkspaceLabels)
+	ws.PATCH("/labels/{label_id}/{$}", h.WorkspaceLabelDetail)
+	ws.DELETE("/labels/{label_id}/{$}", h.WorkspaceLabelDetail)
+
+	// Workspace quick links (plane/app/views/workspace/quick_link.py,
+	// QuickLinkViewSet), backed by the existing `workspace_user_links` collection.
+	ws.GET("/quick-links/{$}", h.QuickLinks)
+	ws.POST("/quick-links/{$}", h.QuickLinks)
+	ws.GET("/quick-links/{link_id}/{$}", h.QuickLinkDetail)
+	ws.PATCH("/quick-links/{link_id}/{$}", h.QuickLinkDetail)
+	ws.DELETE("/quick-links/{link_id}/{$}", h.QuickLinkDetail)
 }
