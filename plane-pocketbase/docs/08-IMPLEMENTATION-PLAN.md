@@ -31,8 +31,13 @@
 |---|---|---|
 | **Agent A**（工作项域） | `internal/router/issue.go`<br>`internal/handlers/issues/**` | 其它 `router/*.go`、`router.go`、`pb_migrations/**` |
 | **Agent B**（页面/项目/视图域） | `internal/router/page.go`、`project.go`、`view.go`<br>`internal/handlers/page/**`、`projects/**`、`view/**` | 同上 |
-| **Agent C**（工作区/用户域） | `internal/router/workspace.go`、`users.go`<br>`internal/handlers/workspaces/**`、`users/**`<br>**仅 Agent C** 可新增 `pb_migrations/1759000013_*.go` | 同上 |
-| **编排者**（我） | `router.go`、`patterns_test.go`、`pb_migrations/` 的既有文件、`spec/**`、`docs/**` | — |
+| **Agent C**（工作区/用户域） | `internal/router/workspace.go`、`users.go`<br>`internal/handlers/workspaces/**`、`users/**` | 同上 |
+| **编排者**（我） | `router.go`、`patterns_test.go`、`pb_migrations/**`（**全部**，含新增）、`spec/**`、`docs/**` | — |
+
+> **迁移创建权收归编排者（2026-10-10 修订）**：原计划把新增迁移的权利给 Agent C，
+> 现已**收回**。理由见 §5 的更正说明 —— Go 把 `pb_migrations` 当一个编译单元，
+> 并发写迁移会互相打断构建。**任何 agent 都不得新增或修改 `pb_migrations/`**；
+> 缺表就写进交付报告，由编排者补。
 
 **为什么按域切而不是按类别切**：类别 C 的 25 个散落在 issue / page / project / workspace
 四个域里。若按类别分给 3 个 agent，它们会同时改同一个 `router/*.go` —— 必然冲突。
@@ -127,8 +132,21 @@ workspace_member_invites · project_member_invites · workspace_members · accou
 **唯一缺失**：`quick_links` → 只允许 **Agent C** 新增一个迁移文件
 `pb_migrations/1759000013_init_quick_links.go`。
 
-> 这是本次编排最大的风险削减点：**没有 agent 需要动 `pb_migrations/` 的既有文件**，
-> 也就没有"迁移编号撞车"的问题。
+> **⚠️ 更正（2026-10-10，Wave 2 准备阶段实测）**：上面这段是**错的**。
+> 权威清单来自 `grep -rho 'NewBaseCollection("...")' pb_migrations/`（共 **79** 个），
+> 对照后缺的不止 `quick_links`：
+> - **`quick_links`** —— Wave 1 已确认可复用 `workspace_user_links`，**不需要迁移**。
+> - **`dashboards` / `dashboard_widgets`** —— **真的不存在**，Wave 2 需要。
+> - **`intake_issue_versions`** —— 不存在，但有个**通用**的 `description_versions`，
+>   `intake-work-items/{ik}/description-versions/` 大概率复用它（agent 必须读 Django 确认）。
+> - `release-notes` 对应的表是 **`changelogs`**（已存在）。
+>
+> **新政策**：迁移创建**一律由编排者做**，agent 一个都不许加。原因是 Go 把整个
+> `pb_migrations` 包当**一个编译单元**，两个 agent 同时写迁移会互相打断构建。
+> `1759000013_init_dashboards.go` 已由编排者写好并实测通过。
+
+> 这是本次编排最大的风险削减点：**没有 agent 需要动 `pb_migrations/`**，
+> 也就没有"迁移编号撞车"和"共享包编译被打断"的问题。
 
 ---
 
@@ -217,3 +235,154 @@ workspace_member_invites · project_member_invites · workspace_members · accou
 > 数据本身是可再生的（`run-all.sh --fresh` 重建），但这暴露了一个真实的编排缺陷：
 > **给并行 agent 的指示里出现了"可以写共享资源"的口子，就一定会被用上。**
 > 后续波的指示必须显式给出**独立的目录与端口**，而不是"你随便挑一个"。
+
+---
+
+## 10. Wave 2 简报（2026-10-10 编排者实测后写定）
+
+**基线**：`audit-endpoints.py` → 281 注册 / 150 调用形状 / **UNSERVED 53**。
+（53 是**下限**，`user-issues` 那种模板字符串拼的 URL 扫不出来。）
+
+### 10.1 已解析的 URL 形状（**直接用，不要猜**）
+
+下面每一条都是我从 `plane-preview/apps/web/services/` 里**逐行读出来**的，
+不是从 audit 的输出猜的。`{slug}` 等工作区/项目参数照旧。
+
+**Agent A（issue 域）**
+
+| 端点 | 真实形状 | 出处 |
+|---|---|---|
+| history | `GET /api/workspaces/{slug}/projects/{pid}/{serviceType}/{issueId}/history/` | `issue.service.ts:140`、`issue_activity.service.ts:32`、`issue_comment.service.ts:36` —— **三处都是 GET**，未见 POST，写前先去 Django 确认 |
+| description-versions | `GET …/{serviceType}/{workItemId}/description-versions/`<br>`GET …/description-versions/{versionId}/` | `work_item_version.service.ts:29,44` |
+| comments | `GET, POST …/{serviceType}/{issueId}/comments/`<br>`PATCH, DELETE …/comments/{commentId}/` | `issue_comment.service.ts:55,72,88` |
+| subscribe | `GET, POST, DELETE …/{serviceType}/{issueId}/subscribe/` | `issue.service.ts:385,394,403` |
+| reactions | `GET, POST …/{serviceType}/{issueId}/reactions/`<br>`DELETE …/reactions/{reaction}/` | `issue_reaction.service.ts:29,39,48` |
+| issue-relation | `GET, POST …/issues/{issueId}/issue-relation/`<br>`DELETE …/issue-relation/{relationId}/` | `issue_relation.service.ts:18,31`、`issue.service.ts:185,196` |
+| remove-relation | `POST …/issues/{issueId}/remove-relation/` | `issue_relation.service.ts:44` |
+| comment reactions | `GET, POST …/comments/{commentId}/reactions/`<br>`DELETE …/reactions/{reaction}/` | `issue_reaction.service.ts:62,74,88` |
+| issue-dates | `GET …/issue-dates/` | `issue.service.ts` |
+| issue-display-properties | `GET, PATCH …/issue-display-properties/` | `issue.service.ts` |
+| epics-user-properties | `GET …/epics-user-properties/` | `issue_filter.service.ts` |
+
+> ⚠️ **`{serviceType}` 展开**：`this.serviceType ∈ {"issues","epics"}`。
+> 本波**只做 `issues` 变体**；`epics` 变体是 Wave 3。但注册时**两条都要想清楚**，
+> 因为 `{serviceType}` 是路径参数还是两条字面路由，会影响 `{$}` 锚定写法。
+> 建议**显式写两条**（`/issues/...` 与 `/epics/...`），Wave 3 只需把 epics 的
+> 路由接到同一批 handler —— 比用 `{serviceType}` 通配更可控，也不会误吞其它子路径。
+> **注意 `issue_relation.service.ts` 用的是字面量 `issues`**，不是 `serviceType`。
+
+> ⚠️ **`issue-dates` / `issue-display-properties` / `epics-user-properties` 三条
+> 在 Wave 1 的 commit message 里被**误报为已完成**（已更正）。它们**没做**，本波要做。
+
+**Agent B（cycle / estimate / intake 域）**
+
+| 端点 | 真实形状 | 出处 |
+|---|---|---|
+| cycle-progress | `GET /api/workspaces/{slug}/projects/{pid}/cycles/{cycleId}/cycle-progress/` | `cycle.service.ts:57` |
+| active-cycles | `GET /api/workspaces/{slug}/active-cycles/` | `cycle.service.ts:69` |
+| estimates (list/create) | `GET /api/workspaces/{slug}/estimates/`（**工作区级**）<br>`GET, POST /api/workspaces/{slug}/projects/{pid}/estimates/` | `estimate.service.ts:23,32,60` |
+| estimate detail | `GET, PATCH, DELETE …/projects/{pid}/estimates/{estimateId}/` | `estimate.service.ts:46,69` |
+| estimate-points | `GET, POST …/estimates/{estimateId}/estimate-points/`<br>`GET, PATCH, DELETE …/estimate-points/{pointId}/` | `estimate.service.ts:83,101` |
+| intake description-versions | `GET …/intake-work-items/{ik}/description-versions/`<br>`GET …/description-versions/{versionId}/` | `intake-work_item_version.service.ts:25,40` |
+| dashboard | 见 §10.3 | `dashboard.service.ts:19,35,45,53` |
+
+**Agent C（user / workspace 域）**
+
+| 端点 | 真实形状 | 出处 |
+|---|---|---|
+| accounts | `GET /api/users/me/accounts/` | `user.service.ts:80` |
+| instance-admin | `GET /api/users/me/instance-admin/` | `user.service.ts:88` |
+| email | `PATCH /api/users/me/email/` | `user.service.ts:286` |
+| email code | `POST /api/users/me/email/generate-code/` | `user.service.ts:278` |
+| last-visited-workspace | `GET /api/users/last-visited-workspace/` | `workspace.service.ts:105` |
+| my workspace invitations | `GET, POST /api/users/me/workspaces/invitations/` | `workspace.service.ts:97,113` |
+| my project invitations | `POST /api/users/me/workspaces/{slug}/projects/invitations/` | `user.service.ts:246` |
+| workspace invitations | `GET, POST /api/workspaces/{slug}/invitations/` | `workspace.service.ts:79,165` |
+| invitation join | `GET, POST /api/workspaces/{slug}/invitations/{ik}/join/` | `workspace.service.ts:87,173` |
+| invitation detail | `PATCH, DELETE /api/workspaces/{slug}/invitations/{ik}/` | `workspace.service.ts:185,193` |
+| workspace member leave | `POST /api/workspaces/{slug}/members/leave/` | `user.service.ts:238` |
+| project member leave | `POST /api/workspaces/{slug}/projects/{pid}/members/leave/` | `user.service.ts:254` |
+| configs | `GET /api/configs/` | `app_config.service.ts:21` |
+| release-notes | `GET /api/release-notes/` | `workspace.service.ts:225` |
+
+> ⚠️ **`members/leave/` 是工作区级**（`/api/workspaces/{slug}/members/leave/`），
+> **不是** `/api/members/leave/`。同一文件里项目级那条是
+> `/api/workspaces/{slug}/projects/{pid}/members/leave/`。两条都要。
+> 另外 `user.service.ts:238` 与 `:254` 都在 `user.service.ts` 里，但路径分属
+> workspace.go 与 workspace.go（都归你），`users.go` 只管 `/api/users/...`。
+
+> ⚠️ **`invitations/{ik}/join/` 的 POST 带 `{ headers: {} }`** —— 即**不带认证头**。
+> 这是"被邀请人尚未登录也能接受邀请"的流程。请读 Django 的
+> `WorkspaceInvitationsViewSet` 确认它对未登录请求的返回，**不要**直接套
+> `ResolveWorkspace` 的成员校验（否则未登录必然 404，邀请链接就是死的）。
+
+> ⚠️ **`configs` 与 `release-notes` 在 Django 里没有 view、没有 url**
+> （实测：`grep -rn 'configs|release-notes' apps/api/plane/app/urls/*.py` 无命中）。
+> 形状只能从**前端 TS 类型 + 它镜像的 Django serializer** 推。请在报告里
+> **写清推导过程**，并明确标注 confidence。
+> `release-notes` 的后端表大概率是已存在的 **`changelogs`**。
+
+### 10.2 本波不做（留给 Wave 3）
+
+`{serviceType}` 的 **`epics` 变体**、`pages/{pk}/archive/` 补充、
+`assets/v2/…/attachments/`、`file-assets/{}/{}/restore/`。
+
+### 10.3 dashboard 域：本波**做**，且契约已由编排者补齐
+
+`dashboard` 是**可见入口**（`apps/web/components/home/root.tsx` 渲染
+`DashboardWidgets`），且 `dashboard.store.ts` 的 `fetchHomeDashboardWidgets`
+**失败直接 throw、没有静态兜底** → 404 会让首页挂件区**静默空白**
+（与 `home-preferences` 同一类静默失败）。
+
+编排者已补齐三件事，agent **不需要**再碰：
+
+1. **表**：`pb_migrations/1759000013_init_dashboards.go` 已创建
+   `dashboards` + `dashboard_widgets`，并实测 `Applied` 成功。
+2. **spec**：`spec/api-spec.yaml` 已补 4 条（`dashboard.home.list` /
+   `dashboard.home.widget-stats` / `dashboard.widget-stats` /
+   `dashboard.widget.update`），`confidence: low`、`view_class: null`。
+3. **路由骨架**：`internal/router/dashboard.go` 的 `RegisterDashboard` 已注册进
+   `registrars` 表（占位返回 nil），**Agent B 只需填函数体**。
+
+**响应形状**（`packages/types/src/dashboard.ts`）：
+
+```
+GET  /api/workspaces/{slug}/dashboard/?dashboard_type=home
+  -> { dashboard: TDeprecatedDashboard, widgets: TWidget[] }
+GET  /api/workspaces/{slug}/dashboard/{dashboard_id}/?widget_key=…
+GET  /api/dashboard/{dashboard_id}/?widget_key=…          <- 注意：不挂 workspace
+  -> TWidgetStatsResponse（联合类型，按 widget_key 变形，见 dashboard.ts:159）
+PATCH /api/dashboard/{dashboard_id}/widgets/{widget_id}/  body: {is_visible?, filters?}
+  -> 单个 TWidget
+```
+
+`widget_key` 取值：`assigned_issues` · `created_issues` · `issues_by_state_groups` ·
+`issues_by_priority` · `recent_activity` · `recent_projects` · `recent_collaborators`
+（外加一个 `overview_stats` 形状 `TOverviewStatsWidgetResponse`）。
+
+**注意**：`/api/dashboard/{id}/` 与 `/api/dashboard/{id}/widgets/{wid}/` **不在
+workspace 前缀下**，但**仍然必须做认证 + 归属校验**（只能看自己的 dashboard），
+否则就是越权读。这两条请单独放在 `RegisterDashboard` 里，不要塞进 `workspaceGroup`。
+
+### 10.4 Agent 隔离（**硬性**，Wave 1 事故的直接产物）
+
+| Agent | 数据库目录 | 端口 | 二进制 | 独占文件 |
+|---|---|---|---|---|
+| A | `.fe-run.agentA` | 8011 | `.fe.agentA.exe` | `internal/router/issue.go`、`internal/handlers/issues/**` |
+| B | `.fe-run.agentB` | 8012 | `.fe.agentB.exe` | `internal/router/{page,project,view,cycle,intake,dashboard,estimate}.go`、`internal/handlers/{page,projects,view,cycle,intake,dashboard,estimate}/**` |
+| C | `.fe-run.agentC` | 8013 | `.fe.agentC.exe` | `internal/router/{workspace,users,config}.go`、`internal/handlers/{workspaces,users,config}/**` |
+
+三个目录**已由编排者预先复制好**（含 `admin@hrms.local` / `hrms` / `HRMS` 测试数据）。
+
+> **三个 agent 都不得**：改 `router.go`、`patterns_test.go`、`spec/**`、`docs/**`、
+> `pb_migrations/**`，也不得用 `.fe-run`（共享库）或 `.fe.exe`（共享二进制）。
+
+### 10.5 一条实测提醒：本波所有目标表都是空的
+
+实测 `data.db`：`cycles` / `issue_comments` / `issue_reactions` / `issue_activities` /
+`estimates` / `estimate_points` / `workspace_member_invites` / `changelogs` …
+**全部 0 行**。
+
+所以 **L3（内容级）验收必须自己造数据**：先用 API 或 fixture 创建一条评论/一个 estimate，
+再断言返回的数组非空、`count > 0`。
+**只断言"返回 200"是不够的** —— 空数组也是 200，而这正是本项目反复踩的坑。
