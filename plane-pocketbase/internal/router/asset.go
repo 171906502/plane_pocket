@@ -69,18 +69,23 @@ func RegisterAsset(e *core.ServeEvent, app core.App) error {
 	legacy.POST("/file-assets/{$}", h.LegacyWorkspaceCreate)
 	legacy.DELETE("/file-assets/{$}", h.LegacyWorkspaceDelete)
 
-	// NOTE: the legacy `asset.file-assets.detail` /
-	// `asset.file-assets.detail.2` paths
+	// The legacy `asset.file-assets.detail` / `…detail.2` paths
 	// (`/api/workspaces/file-assets/{workspace_id}/{asset_key}/` and its
-	// `restore/` variant) are deliberately NOT registered. Go's ServeMux treats
-	// the core `/api/workspaces/{slug}/members/` route as a subtree pattern that
-	// matches every `/api/workspaces/file-assets/<x>/…` path, so the two overlap
-	// and neither is more specific — registering them panics the router at boot.
-	// Django resolves this by URL ordering; Go's mux cannot. The handler methods
-	// (LegacyWorkspaceDetail / …Delete / …Restore) are kept so the endpoints can
-	// be re-enabled if the core members route is ever tightened.
+	// `restore/` variant).
 	//
-	// The user-scoped variants do not collide and are registered below.
+	// `restore/` is six segments, so it cannot overlap the five-segment
+	// `{slug}/workspace-members/me/` route and registers normally. Its five-
+	// segment sibling cannot be registered at all — see LegacyFallback — so it is
+	// served through the catch-all registered below.
+	e.Router.POST("/api/workspaces/file-assets/{workspace_id}/{asset_key}/restore/{$}", h.LegacyWorkspaceRestore)
+
+	// Take over the router's catch-all so the unregisterable five-segment
+	// file-asset path can still be served. PocketBase's BuildMux installs its own
+	// `"/"` 404 route only when one is absent (tools/router/router.go:68), so
+	// this replaces that route with an identical-behaviour one plus a narrow
+	// dispatch for the file-asset prefix. Every other unmatched path still gets
+	// the framework's exact 404.
+	e.Router.Any("/", h.LegacyFallback)
 
 	e.Router.GET("/api/users/file-assets/{$}", h.LegacyUserList)
 	e.Router.POST("/api/users/file-assets/{$}", h.LegacyUserCreate)

@@ -2,6 +2,7 @@ package asset
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -118,6 +119,50 @@ func (h *Handler) LegacyWorkspaceDetailDelete(e *core.RequestEvent) error {
 		}
 	}
 	return e.NoContent(http.StatusNoContent)
+}
+
+// LegacyFallback takes over the router's catch-all route. It exists for exactly
+// one reason: `GET`/`DELETE /api/workspaces/file-assets/{workspace_id}/{asset_key}/`
+// cannot be registered as a ServeMux pattern.
+//
+// The overlap is real and was verified by trying it. Both that pattern and the
+// required `GET /api/workspaces/{slug}/workspace-members/me/{$}` are five
+// segments, one pinning `file-assets` at position 3 and the other pinning
+// `workspace-members`/`me` at 4/5. A request to
+// `/api/workspaces/file-assets/workspace-members/me/` therefore matches both and
+// neither is more specific, so `BuildMux` panics ("conflicts with pattern …")
+// and the server then answers 502 on every route. Django sidesteps this with URL
+// ordering; Go's mux has no equivalent.
+//
+// PocketBase's BuildMux only installs its own `"/"` route returning 404 when one
+// is not already registered (tools/router/router.go:68), so registering this one
+// lets us dispatch those two paths before the mux is consulted, while delegating
+// to the *identical* `NotFoundError` for every other path — the mux keeps the
+// same pattern set, only the `"/"` handler body differs.
+//
+// The six-segment `…/restore/` variant has no such overlap and is registered
+// normally, so it does not reach this fallback.
+func (h *Handler) LegacyFallback(e *core.RequestEvent) error {
+	const prefix = "/api/workspaces/file-assets/"
+	path := e.Request.URL.Path
+	if !strings.HasPrefix(path, prefix) {
+		return e.NotFoundError("", nil)
+	}
+	parts := strings.Split(strings.Trim(strings.TrimPrefix(path, prefix), "/"), "/")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return e.NotFoundError("", nil)
+	}
+	// No mux pattern matched this path, so its wildcards were never populated.
+	// The handlers read `workspace_id` / `asset_key` via PathValue, so set them.
+	e.Request.SetPathValue("workspace_id", parts[0])
+	e.Request.SetPathValue("asset_key", parts[1])
+	switch e.Request.Method {
+	case http.MethodGet:
+		return h.LegacyWorkspaceDetail(e)
+	case http.MethodDelete:
+		return h.LegacyWorkspaceDetailDelete(e)
+	}
+	return e.NotFoundError("", nil)
 }
 
 // LegacyWorkspaceRestore serves POST
