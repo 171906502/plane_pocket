@@ -79,7 +79,7 @@ case "$_sys" in
 
   Run it from a real Git Bash prompt instead, e.g.:
 
-    "C:\Program Files\Git\bin\bash.exe" -lc "cd /c/Users/cao/Desktop/asl-work/plane_pocket/plane-pocketbase/tests/browser && bash reset-data.sh"
+    "C:\Program Files\Git\bin\bash.exe" -lc "cd /d/ai-work/plane_pocket/plane-pocketbase/tests/browser && bash reset-data.sh"
 EOF
     exit 3 ;;
   *)

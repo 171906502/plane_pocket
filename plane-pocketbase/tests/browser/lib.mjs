@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 // Derived from this file's own location (…/tests/browser/lib.mjs) rather than
 // hardcoded, so a clone in another directory works. Was
-// "C:\\Users\\cao\\Desktop\\asl-work\\plane_pocket\\plane-pocketbase\\tests".
+// "D:\\ai-work\\plane_pocket\\plane-pocketbase\\tests".
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);
 

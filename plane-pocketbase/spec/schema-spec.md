@@ -7,7 +7,7 @@ source:      Plane v1.4.2 Django/PostgreSQL backend
              apps/api/plane/db/models/integration/*.py
              apps/api/plane/license/models/instance.py
 target:      PocketBase (SQLite) — collections + fields system (v0.23+)
-reference:   C:\Users\cao\Desktop\asl-work\plane_pocket\pocketbase-master\core\field_*.go
+reference:   D:\ai-work\plane_pocket\pocketbase-master\core\field_*.go
 method:      (1) scripted bulk extraction of every `class X(...)` under db/models and
              license/models; (2) full read of every model file; (3) full read of every
              PocketBase core/field_*.go before asserting any field type or option;

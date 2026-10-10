@@ -1,6 +1,6 @@
 import { chromium } from "playwright-core";
 const EDGE = "C://Program Files (x86)//Microsoft//Edge//Application//msedge.exe";
-const PROFILE = "C://Users//cao//Desktop//asl-work//plane_pocket//plane-pocketbase//tests//browser//profile";
+const PROFILE = "D://ai-work//plane_pocket//plane-pocketbase//tests//browser//profile";
 try {
   const ctx = await chromium.launchPersistentContext(PROFILE, {
     executablePath: EDGE, headless: true,

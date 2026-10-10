@@ -718,7 +718,7 @@ uname -s          # MINGW64_NT-* / MSYS_NT-* = Git Bash（对）；Linux = WSL�
 
 # 正确调用姿势（从 Git Bash 提示符，或用 -lc 显式进 Git Bash）
 "C:\Program Files\Git\bin\bash.exe" -lc \
-  "cd /c/Users/cao/Desktop/asl-work/plane_pocket/plane-pocketbase/tests/browser && bash start-stack.sh all"
+  "cd /d/ai-work/plane_pocket/plane-pocketbase/tests/browser && bash start-stack.sh all"
 
 # 脚本退出码必须可信：0 才代表真的起来了
 bash start-stack.sh all; echo "exit=$?"

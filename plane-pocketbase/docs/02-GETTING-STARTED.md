@@ -147,13 +147,13 @@ go test ./internal/router/ -run TestRoutePatternsAreAnchored -v
 
 ```bash
 # ✅ 方式一：打开「Git Bash」开始菜单项，然后
-cd /c/Users/cao/Desktop/asl-work/plane_pocket/plane-pocketbase/tests/browser
+cd /d/ai-work/plane_pocket/plane-pocketbase/tests/browser
 bash stack.sh start
 ```
 
 ```bash
 # ✅ 方式二：从任何 shell 显式调用 Git Bash
-"C:\Program Files\Git\bin\bash.exe" -lc "cd /c/Users/cao/Desktop/asl-work/plane_pocket/plane-pocketbase/tests/browser && bash stack.sh start"
+"C:\Program Files\Git\bin\bash.exe" -lc "cd /d/ai-work/plane_pocket/plane-pocketbase/tests/browser && bash stack.sh start"
 ```
 
 脚本会自己判断环境：进错 shell 会**立刻退出并打印正确命令**（退出码 3），
