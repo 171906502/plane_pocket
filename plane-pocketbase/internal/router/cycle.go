@@ -18,7 +18,12 @@ func RegisterCycle(e *core.ServeEvent, app core.App) error {
 	h := cycle.New(app)
 
 	// Workspace-wide cycle list (WorkspaceCyclesEndpoint).
-	workspaceGroup(e, app).GET("/cycles/{$}", h.WorkspaceList)
+	ws := workspaceGroup(e, app)
+	ws.GET("/cycles/{$}", h.WorkspaceList)
+	// Workspace-wide paginated "active cycles" list (frontend
+	// `CycleService.workspaceActiveCycles`; no Django view — shape derived from
+	// IWorkspaceActiveCyclesResponse).
+	ws.GET("/active-cycles/{$}", h.ActiveCycles)
 
 	proj := workspaceGroup(e, app).
 		Group("/projects/{project_id}").
@@ -54,6 +59,9 @@ func RegisterCycle(e *core.ServeEvent, app core.App) error {
 	proj.GET("/cycles/{cycle_id}/user-properties/{$}", h.UserPropertiesGet)
 	proj.PATCH("/cycles/{cycle_id}/user-properties/{$}", h.UserPropertiesPatch)
 	proj.GET("/cycles/{cycle_id}/progress/{$}", h.Progress)
+	// `cycle-progress/` is the frontend's "Pro" variant (no Django view; same
+	// TProgressSnapshot shape as `progress/`).
+	proj.GET("/cycles/{cycle_id}/cycle-progress/{$}", h.CycleProgress)
 	proj.GET("/cycles/{cycle_id}/analytics/{$}", h.Analytics)
 
 	// Archive / unarchive. The `archived-cycles` collection paths are read-only

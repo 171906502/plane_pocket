@@ -80,4 +80,30 @@ func registerWorkspace(e *core.ServeEvent, app core.App) {
 	ws.GET("/quick-links/{link_id}/{$}", h.QuickLinkDetail)
 	ws.PATCH("/quick-links/{link_id}/{$}", h.QuickLinkDetail)
 	ws.DELETE("/quick-links/{link_id}/{$}", h.QuickLinkDetail)
+
+	// Workspace invitations (plane/app/views/workspace/invite.py,
+	// WorkspaceInvitationsViewset). The viewset's WorkSpaceAdminPermission
+	// admits Admins and Members (role >= 15), not Guests.
+	ws.GET("/invitations/{$}", h.Invitations).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleMember))
+	ws.POST("/invitations/{$}", h.Invitations).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleMember))
+	ws.PATCH("/invitations/{ik}/{$}", h.InvitationDetail).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleMember))
+	ws.DELETE("/invitations/{ik}/{$}", h.InvitationDetail).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleMember))
+
+	// The join endpoint is deliberately NOT under `ws`: it must answer an
+	// invited person who has no session yet, so it cannot run the
+	// ResolveWorkspace membership check (which 404s non-members). Django gives
+	// it AllowAny (WorkspaceJoinEndpoint); the handler resolves the workspace
+	// itself and gates acceptance on the invite token + the invited address.
+	e.Router.GET("/api/workspaces/{slug}/invitations/{ik}/join/{$}", h.InvitationJoin)
+	e.Router.POST("/api/workspaces/{slug}/invitations/{ik}/join/{$}", h.InvitationJoin)
+
+	// Leaving a workspace / a project (WorkSpaceMemberViewSet.leave,
+	// ProjectMemberViewSet.leave). Note the workspace-level path is
+	// `/members/leave/`, NOT `/api/members/leave/`.
+	ws.POST("/members/leave/{$}", h.LeaveWorkspace)
+
+	proj := workspaceGroup(e, app).
+		Group("/projects/{project_id}").
+		BindFunc(middleware.ResolveProject(app))
+	proj.POST("/members/leave/{$}", h.LeaveProject)
 }

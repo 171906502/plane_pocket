@@ -2,6 +2,8 @@ package router
 
 import (
 	"github.com/pocketbase/pocketbase/core"
+
+	"github.com/plane-pocketbase/plane-pocketbase/internal/handlers/dashboard"
 )
 
 // RegisterDashboard wires the workspace dashboard domain
@@ -10,11 +12,6 @@ import (
 // Contract: spec/api-spec.yaml, group `dashboard`; frontend call sites in
 // plane-preview/apps/web/services/dashboard.service.ts.
 //
-// NOTE (orchestrator): this file is a placeholder created ahead of Wave 2 so
-// that the `dashboard` domain exists in the registrars table before the
-// implementing agent starts. The agent that owns this file fills in the body;
-// it must not need to touch router.go.
-//
 // URL shapes resolved from the frontend (do NOT guess):
 //
 //	GET  /api/workspaces/{slug}/dashboard/                    (query: dashboard_type=home)
@@ -22,9 +19,23 @@ import (
 //	GET  /api/dashboard/{dashboard_id}/
 //	PATCH /api/dashboard/{dashboard_id}/widgets/{widget_id}/
 //
-// The last two are deliberately NOT workspace-scoped.
+// The last two are deliberately NOT workspace-scoped: they hang off `e.Router`
+// directly rather than `workspaceGroup`, so `ResolveWorkspace` does not run.
+// The handler therefore performs authentication AND an explicit ownership check
+// (a caller may only read/patch a dashboard whose `owned_by` is the caller).
+//
+// Every route ends in "/", so every one is `{$}`-anchored.
 func RegisterDashboard(e *core.ServeEvent, app core.App) error {
-	_ = e
-	_ = app
+	h := dashboard.New(app)
+
+	ws := workspaceGroup(e, app)
+	ws.GET("/dashboard/{$}", h.HomeDashboard)
+	ws.GET("/dashboard/{dashboard_id}/{$}", h.WidgetStats)
+
+	// NOT under /api/workspaces/… — registered directly, with the handler's own
+	// auth + ownership checks.
+	e.Router.GET("/api/dashboard/{dashboard_id}/{$}", h.WidgetStatsByID)
+	e.Router.PATCH("/api/dashboard/{dashboard_id}/widgets/{widget_id}/{$}", h.UpdateWidget)
+
 	return nil
 }

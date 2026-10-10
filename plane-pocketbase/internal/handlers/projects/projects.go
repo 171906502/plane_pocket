@@ -332,6 +332,31 @@ func (h *Handler) Archive(e *core.RequestEvent) error {
 	})
 }
 
+// Unarchive serves DELETE /api/workspaces/{slug}/projects/{project_id}/archive/
+// — ProjectArchiveUnarchiveEndpoint.delete
+// (plane/app/views/project/base.py:436-441), which clears `archived_at` and
+// answers 204.
+//
+// This was missed when the POST half was implemented. The frontend's
+// `project-archive.service.ts:restoreProject` calls exactly this DELETE, so
+// without it "Restore project" silently 404s and the project can never leave
+// the archived list. Django's @allow_permission is [ADMIN, MEMBER] on both
+// halves, so the role binding matches Archive's.
+func (h *Handler) Unarchive(e *core.RequestEvent) error {
+	scope := middleware.ScopeOf(e)
+	if scope == nil || scope.Project == nil {
+		return serializers.NotFound(e, "")
+	}
+	project := scope.Project
+	// PocketBase has no NULL: clearing a DateField means setting it to nil,
+	// which stores the zero value (the same convention cycle.Unarchive uses).
+	project.Set("archived_at", nil)
+	if err := h.App.Save(project); err != nil {
+		return err
+	}
+	return e.NoContent(http.StatusNoContent)
+}
+
 // States serves GET /api/workspaces/{slug}/projects/{project_id}/states/. Plane
 // returns a plain array ordered by `sequence`, with a computed `order` giving
 // each state's position within its group (StateViewSet.list).

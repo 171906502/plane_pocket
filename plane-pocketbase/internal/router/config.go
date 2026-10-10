@@ -2,6 +2,8 @@ package router
 
 import (
 	"github.com/pocketbase/pocketbase/core"
+
+	"github.com/plane-pocketbase/plane-pocketbase/internal/handlers/config"
 )
 
 // RegisterConfig wires the two top-level, non-workspace-scoped read endpoints
@@ -23,7 +25,13 @@ import (
 // in the registrars table before the implementing agent starts. The owning
 // agent fills in the body; it must not need to touch router.go.
 func RegisterConfig(e *core.ServeEvent, app core.App) error {
-	_ = e
-	_ = app
+	h := config.New(app)
+
+	// Both paths are top-level (not workspace-scoped) and anchored with `{$}`
+	// so an unknown sibling under them 404s instead of being answered by these
+	// handlers.
+	e.Router.GET("/api/configs/{$}", h.Configs)
+	e.Router.GET("/api/release-notes/{$}", h.ReleaseNotes)
+
 	return nil
 }

@@ -52,6 +52,10 @@ func registerProject(e *core.ServeEvent, app core.App) {
 	// Archive the project (ProjectArchiveUnarchiveEndpoint.post). ADMIN or
 	// MEMBER, matching Django's @allow_permission.
 	proj.POST("/archive/{$}", h.Archive).BindFunc(middleware.RequireProjectRole(middleware.RoleMember))
+	// Unarchive the project (ProjectArchiveUnarchiveEndpoint.delete → 204).
+	// The frontend's restoreProject() calls this; without it "Restore project"
+	// 404s and the project is stuck in the archived list forever.
+	proj.DELETE("/archive/{$}", h.Unarchive).BindFunc(middleware.RequireProjectRole(middleware.RoleMember))
 
 	// Mark a state as the project default (StateViewSet.mark_as_default).
 	// Django restricts this to project ADMIN.
@@ -67,6 +71,15 @@ func registerProject(e *core.ServeEvent, app core.App) {
 	proj.GET("/user-properties/{$}", h.UserProperties)
 	proj.PATCH("/user-properties/{$}", h.UserProperties)
 	proj.GET("/issue-labels/{$}", h.IssueLabels)
+	// Label CRUD (LabelViewSet.create / partial_update / destroy). Django
+	// restricts all three to project ADMIN. The GET half existed alone, so
+	// creating/editing/deleting a label from project settings 404'd.
+	proj.POST("/issue-labels/{$}", h.IssueLabelsCreate).
+		BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
+	proj.PATCH("/issue-labels/{label_id}/{$}", h.IssueLabelsDetail).
+		BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
+	proj.DELETE("/issue-labels/{label_id}/{$}", h.IssueLabelsDetail).
+		BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
 	proj.GET("/estimates/{$}", h.Estimates)
 
 	// Publish (deploy-board) management — spec ids

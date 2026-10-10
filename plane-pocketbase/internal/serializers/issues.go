@@ -10,15 +10,21 @@ import (
 // (`workspace_id` and `state__group`, the latter from Issue.state.group).
 //
 // Counts and id-lists that Plane reads from join collections inside this slice
-// (`issue_labels`, `issue_assignees`, and the self-referential `parent`) are
-// resolved here. Fields whose backing collection is outside the slice are
-// projected as their empty values and reported:
+// (`issue_labels`, `issue_assignees`, the self-referential `parent`, and
+// `cycle_issues`) are resolved here. Fields whose backing collection is outside
+// the slice are projected as their empty values and reported:
 //
 //	estimate_point    -> estimate_points  (excluded)
-//	cycle_id          -> cycle_issues     (excluded)
 //	module_ids        -> module_issues    (excluded)
 //	link_count        -> issue_links      (excluded)
 //	attachment_count  -> file_assets      (excluded)
+//
+// `cycle_id` used to be listed above as excluded and hardcoded to nil. That was
+// a stale placeholder: `cycle_issues` now exists, so reporting nil made every
+// issue look detached from its cycle. The cycles UI reads `issue.cycle_id`
+// (packages/types/src/issues/issue.ts:63) and offers it as a sortable/groupable
+// property (:149, :177), so the placeholder was user-visible — and it made the
+// Wave-2 `cycles/{id}/cycle-progress/` endpoint permanently report 0 issues.
 func Issue(app core.App, r *core.Record) map[string]any {
 	if r == nil {
 		return nil
@@ -55,7 +61,7 @@ func Issue(app core.App, r *core.Record) map[string]any {
 		"project_id":       RelationUUID(app, r, "project"),
 		"workspace_id":     RelationUUID(app, r, "workspace"),
 		"parent_id":        RelationUUID(app, r, "parent"),
-		"cycle_id":         nil,
+		"cycle_id":         issueCycleID(app, r),
 		"module_ids":       []string{},
 		"label_ids":        issueLabelIDs(app, r),
 		"assignee_ids":     issueAssigneeIDs(app, r),
@@ -69,6 +75,33 @@ func Issue(app core.App, r *core.Record) map[string]any {
 		"is_draft":         r.GetBool("is_draft"),
 		"archived_at":      DateOnly(r, "archived_at"),
 	}
+}
+
+// issueCycleID resolves the issue's cycle through the `cycle_issues` through
+// table, mirroring Django's IssueSerializer.to_representation
+// (plane/app/serializers/issue.py:744-769):
+//
+//	CycleIssue = apps.get_model("db.CycleIssue")
+//	cycle_issue = CycleIssue.objects.filter(issue=issue).first()
+//	cycle = cycle_issue.cycle_id if cycle_issue else None
+//
+// The association lives ONLY in CycleIssue — there is no `issues.cycle` column
+// — and the first bridge row wins, so the filter is limited to 1.
+func issueCycleID(app core.App, issue *core.Record) any {
+	rows, err := app.FindRecordsByFilter(
+		"cycle_issues",
+		"issue = {:issue} && deleted_at = ''",
+		"", 1, 0,
+		dbx.Params{"issue": issue.Id},
+	)
+	if err != nil || len(rows) == 0 {
+		return nil
+	}
+	cycle, _ := app.FindRecordById("cycles", rows[0].GetString("cycle"))
+	if cycle == nil {
+		return nil
+	}
+	return UUID(cycle)
 }
 
 // issueLabelIDs resolves the issue's labels through the `issue_labels` through

@@ -133,33 +133,58 @@
 
 **处理方式**：按模块整体规划，不要零散补。参考 `internal/router/cycle.go`（69 行）作为最小完整模板。
 
-### 3.3 类别 C · ⭐ 已实现模块的边角操作（**最高优先级**）
+### 3.3 类别 C · ⭐ 已实现模块的边角操作（**已全部补齐**）
 
 **这一类最该先补**，因为它们是**列表页上的可见入口** —— 用户点了就会 404。
 
-| 路径 | 用户在哪里看到 |
-|---|---|
-| `bulk-archive-issues/` | 工作项列表 → 批量操作菜单 |
-| `bulk-delete-issues/` | 同上 |
-| `bulk-operation-issues/` | 同上 |
-| `bulk-subscribe-issues/` | 同上 |
-| `issues/{}/meta/` | 工作项详情 |
-| `issues/{}/issue-relation/` | 工作项详情 → 关联 |
-| `pages/{}/move/` | 页面 → 移动到项目 |
-| `states/{}/mark-default/` | 项目设置 → 状态 |
-| `deleted-issues/` | 工作项列表 → 已删除筛选 |
-| `archived-issues/` | 工作项列表 → 已归档筛选 |
-| `favorite-pages/` | 侧边栏 → 收藏页面 |
-| `my-issues/` | 个人工作项视图 |
+> **2026-10-10 更新**：下面这些**已全部注册并实测通过**（Wave 1 + Wave 2）。
+> 下表由「待办清单」改为「验收记录」，并修正了原表的**两处不准确**：
+> ① 原表漏列了约 11 项同类入口；② 原表把 `favorite-pages/` 记作"整体缺失"，
+> 实际 `POST`/`DELETE` 早已存在，缺的只有 `GET`。
 
-> **核心结论**：**主流程"跑通"不等于"点哪都不 404"。**
-> 上面这些是列表页右键菜单和筛选器上的可见入口，属于下一步最该补的。
+| 路径 | 用户在哪里看到 | 状态 |
+|---|---|---|
+| `bulk-archive-issues/` | 工作项列表 → 批量操作菜单 | ✅ |
+| `bulk-delete-issues/` | 同上 | ✅ |
+| `bulk-operation-issues/` | 同上 | ✅ |
+| `bulk-subscribe-issues/` | 同上 | ✅ |
+| `bulk-create-labels/` | 同上（批量打标签） | ✅ |
+| `issues/{}/meta/` | 工作项详情（`project_identifier` / `sequence_id`） | ✅ |
+| `issues/{}/issue-relation/` | 工作项详情 → 关联 | ✅ |
+| `issues/{}/remove-relation/` | 同上 | ✅ |
+| `issues/{}/history/` | 工作项详情 → 活动 | ✅ |
+| `issues/{}/description-versions/` | 工作项详情 → 版本历史 | ✅ |
+| `issues/{}/comments/` + `comments/{}/reactions/` | 工作项详情 → 评论 | ✅ |
+| `issues/{}/subscribe/` | 工作项详情 → 订阅 | ✅ |
+| `issues/{}/reactions/` | 工作项详情 → 表情 | ✅ |
+| `issue-dates/` · `issue-display-properties/` · `epics-user-properties/` | 工作项筛选器 / 显示属性 | ✅ |
+| `projects/{}/issue-labels/` **CRUD** | 项目设置 → 标签 | ✅（原表漏列；见下方注） |
+| `projects/{}/archive/` **DELETE** | 项目设置 → 恢复项目 | ✅（原表漏列） |
+| `pages/{}/move/` | 页面 → 移动到项目 | ✅ |
+| `states/{}/mark-default/` | 项目设置 → 状态 | ✅ |
+| `deleted-issues/` | 工作项列表 → 已删除筛选 | ✅ |
+| `archived-issues/` | 工作项列表 → 已归档筛选 | ✅ |
+| `favorite-pages/` | 侧边栏 → 收藏页面 | ✅（**修正**：原表记作整体缺失，实际只缺 `GET`） |
+| `my-issues/` | 个人工作项视图 | ✅ |
+| `user-issues/{user_id}/` | profile 页 `/assigned` 标签 | ✅ |
+| `quick-links/` | 工作区快捷链接 | ✅ |
+| `project-members/me/` · `members/` · `user-properties/` | 项目页每次加载 | ✅ |
+| `workspace-members/me/` · `sidebar-preferences/` · `home-preferences/` | 应用外壳 / 首页 | ✅ |
+
+> ⚠️ **一个 audit 脚本看不见的缺陷类别（方法级缺口）**：
+> `audit-endpoints.py` diff 的是**路径**。`projects/{}/issue-labels/` 这条路径
+> **早已注册**（只有 `GET`），所以脚本永远报"已服务" —— 而前端要的
+> `POST`/`PATCH`/`DELETE` 全部 404。
+> **同类**：`projects/{}/archive/` 只有 `POST`，缺 `DELETE`（"恢复项目"点了没反应）。
+> 两处均在 Wave 2 收尾时补齐并实测（见 §4 缺陷 23/24）。
+> **结论：路径级审计不能替代逐方法核对；有疑点一律回去读前端 service 文件。**
 
 ### 3.4 单个高优先级待办
 
 | 待办 | 说明 |
 |---|---|
-| **`GET /api/workspaces/{slug}/user-issues/{user_id}/`** | profile 个人页 `/assigned` 标签页的列表数据来源。**页面结构已正常渲染**（Summary / Overview / Workload / Work items by Priority / Work items by state / Recent activity 都在），assigned 标签能切过去但**列表为空**。补上它就能真正显示工作项 |
+| ~~**`GET /api/workspaces/{slug}/user-issues/{user_id}/`**~~ | ✅ **已完成**。profile 个人页 `/assigned` 标签页的数据来源，实测 `total_count:1` 且**标题真实渲染在页面上**（`verify-profile.mjs` 断言通过） |
+
 
 > **契约要点**（已在会话中推导，实现时请再核对 Django 源码）：
 > - 权限：`IsAuthenticated` + `WorkspaceViewerPermission`
@@ -172,7 +197,7 @@
 
 ---
 
-## 4. 22 个已修缺陷索引
+## 4. 25 个已修缺陷索引
 
 > 完整叙事（症状 / 根因 / 修法 / 证据）见 `tests/WORKFLOW_TEST_REPORT.md`。
 > 这里只做索引，方便快速定位。
@@ -201,8 +226,11 @@
 | 20 | `states` / `user-properties` / `sidebar-preferences` 缺失 | 被 #17 掩盖 |
 | 21 | `home-preferences/` 缺失 → 首页挂件全部消失 | 被 #17 掩盖 + 前端渲染成"正常" |
 | 22 | 脚本写死 Node 版本化路径 → `apps/live` 静默起不来 | 见 **C-13**；后果是 Pages 编辑器无限循环（#10） |
+| 23 | **方法级缺口**：`projects/{}/issue-labels/` 只有 `GET` | 标签 CRUD 全 404；**路径级审计看不见**，见 §3.3 注 |
+| 24 | **方法级缺口**：`projects/{}/archive/` 只有 `POST` | "恢复项目"404；Django 的 `DELETE` 应答 204 |
+| 25 | `issue.cycle_id` 硬编码为 `nil` | `cycle_issues` 已存在后成了陈旧占位 → 周期进度恒为 0 |
 
-**从这 21 个缺陷提炼出的五条结论**（值得所有后来者记住）：
+**从这 25 个缺陷提炼出的六条结论**（值得所有后来者记住）：
 
 1. **前端零改动的兼容层策略成立** —— 所有问题都出在复刻层，没有一处需要改前端源码。
 2. **"接口 404"和"接口返回语义不对的 200"是两种完全不同的故障。** 前者立刻可见，
@@ -214,6 +242,9 @@
    因此**"截图没有异常"不能作为验收标准** —— 必须断言**具体内容**。
 5. **一切顺利却等一刻钟不往下跑的等待循环，大概率是一行不起眼的命令导致的**（`curl -o /dev/null` 退出 23）。
    修好后启动从 ~9 分钟降到 2 秒。
+6. **"路径已注册"不等于"接口已实现"。** `audit-endpoints.py` 按**路径**做 diff，
+   于是"路径在、方法缺"的缺口（#23 `issue-labels/`、#24 `archive/`）**永远报已服务**。
+   这类缺口只能靠**逐方法核对 + 读前端 service 文件**发现 —— 静态审计的盲区必须有另一套手段补上。
 
 ---
 
@@ -221,10 +252,12 @@
 
 | 优先级 | 事项 | 为什么 | 预估改动面 |
 |---|---|---|---|
-| **P0** | 补 §3.3 类别 C 的边角操作（尤其 `bulk-*` 与 `favorite-pages/`） | 列表页**可见入口**，点了就 404，用户最容易撞到 | 每项 1 个 handler + 1 条路由 |
-| **P0** | 补 `user-issues/{user_id}/` | profile 页 `/assigned` 标签是空的，是已知的"半成品" | 1 个 handler + 1 条路由 + 断言 |
-| **P1** | 处理部署阻断项 `N-2`（`SameSite` 跨站问题） | 不改就无法跨站部署 | 改 `middleware/auth.go` 的 cookie 设置 |
+| ~~**P0**~~ | ~~补 §3.3 类别 C 的边角操作（尤其 `bulk-*` 与 `favorite-pages/`）~~ | ✅ **已完成**（Wave 1 + Wave 2，见 §3.3） | — |
+| ~~**P0**~~ | ~~补 `user-issues/{user_id}/`~~ | ✅ **已完成**，profile `/assigned` 已实测渲染出标题 | — |
+| **P0** | Wave 3：`{serviceType}` 的 **`epics` 变体** + `assets/v2/…/attachments/` + `file-assets/{}/{}/restore/` | `epics` 变体是同一批 handler 换前缀，收益/成本比最高 | 约 18 个端点 |
+| **P1** | 处理部署阻断项 `N-2`（`SameSite` 跨站问题） | 不改就无法跨站部署（同站不同子域可绕过，见 `08-IMPLEMENTATION-PLAN.md` §8） | 改 `middleware/auth.go` 的 cookie 设置 |
 | **P1** | 补 §3.2 中 Cycle / View / Intake 的模块内缺口 | 这些模块有基础接口但功能不完整 | 按模块整体规划 |
+| **P1** | **方法级缺口普查**：逐端点核对 HTTP 方法，不只核对路径 | `issue-labels/` 与 `archive/` 都是"路径已注册、方法缺失"，audit 脚本报不出来（缺陷 23/24） | 1 个脚本 + 人工核对 service 文件 |
 | **P2** | 建立发布前自动化检查脚本（把 `05-TESTING.md` §9 串起来） | 减少人工遗漏 | 1 个 shell 脚本 |
 | **P2** | 安全审计（对照 `spec/permissions.md` 逐端点核对守卫） | 未做过 | 系统性审查 |
 | **P3** | Magic Link 的发信能力 | 当前不通 | 需要邮件服务 |
@@ -239,7 +272,7 @@
 
 | 文档 | 位置 | 内容 | 大小 |
 |---|---|---|---|
-| API 清单 | `spec/api-spec.yaml` | 391 个端点：方法 / 视图类 / 请求响应形状 / 是否被前端调用 / 是否剔除 | ~170 KB |
+| API 清单 | `spec/api-spec.yaml` | 395 个端点：方法 / 视图类 / 请求响应形状 / 是否被前端调用 / 是否剔除 | ~170 KB |
 | Schema 映射 | `spec/schema-spec.md` | 每个 Django 模型 → PocketBase collection/field 的权威映射；§2 是 UUID 策略（规范性） | ~210 KB |
 | 权限模型 | `spec/permissions.md` | 两级角色轴、逐端点守卫、Guest 的创建者例外 | ~32 KB |
 | 剔除清单 | `spec/exclusions.md` | 五块被剔除功能的后端文件/端点/前端路由/环境变量逐项清单，含 §6「保留但受影响的调用点及替代方案」与 §7「待决项」 | ~26 KB |

@@ -50,6 +50,12 @@ func RegisterIntake(e *core.ServeEvent, app core.App) error {
 	// Triage state.
 	proj.GET("/intake-state/{$}", h.IntakeState)
 
+	// Description versions of an intake work item. `{work_item_id}` is the
+	// underlying issue UUID; the backing table is `issue_description_versions`
+	// (see internal/handlers/intake/wave2.go).
+	proj.GET("/intake-work-items/{work_item_id}/description-versions/{$}", h.DescriptionVersionsList)
+	proj.GET("/intake-work-items/{work_item_id}/description-versions/{pk}/{$}", h.DescriptionVersionDetail)
+
 	// Workspace-level draft issues (private to their creator).
 	ws.GET("/draft-issues/{$}", h.DraftsList)
 	ws.POST("/draft-issues/{$}", h.DraftsCreate)
