@@ -343,14 +343,24 @@ func (h *Handler) createAsset(e *core.RequestEvent, in createInput) error {
 		return serializers.Validation(e, "detail", err.Error())
 	}
 
-	return e.JSON(http.StatusOK, map[string]any{
+	payload := map[string]any{
 		"upload_data": map[string]any{
 			"url":    absoluteURL(e, "/api/assets/v2/upload/"+serializers.UUID(record)+"/"),
 			"fields": map[string]any{"key": serializers.UUID(record)},
 		},
 		"asset_id":  serializers.UUID(record),
 		"asset_url": serializers.AssetURL(h.App, record),
-	})
+	}
+	// Only the issue-attachment endpoint adds this extra key
+	// (IssueAttachmentV2Endpoint, plane/app/views/issue/attachment.py:139-145);
+	// the generic workspace/project/user uploads do not. The frontend's
+	// uploadIssueAttachment returns `signedURLResponse.attachment` to its caller,
+	// so omitting it here made the freshly created attachment come back as
+	// undefined in the UI.
+	if in.attach {
+		payload["attachment"] = serializers.Asset(h.App, record)
+	}
+	return e.JSON(http.StatusOK, payload)
 }
 
 // Upload receives the bytes for a metadata row created by createAsset. It is our

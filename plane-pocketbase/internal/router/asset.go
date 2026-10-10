@@ -50,6 +50,16 @@ func RegisterAsset(e *core.ServeEvent, app core.App) error {
 	// Issue attachments (the asset_url shape ISSUE_ATTACHMENT resolves to).
 	att := proj.Group("/issues/{issue_id}")
 	att.GET("/attachments/{$}", h.AttachmentList)
+	// The upload half of the attachment flow. `AttachmentUpload` already existed
+	// but had no route: it was reachable only through ProjectSubresource, which is
+	// registered as `/{entity_id}/{action}/{$}` — two segments after
+	// `projects/{project_id}` — while this path is three
+	// (`issues/{issue_id}/attachments/`). So the POST always fell through to a
+	// routing 404 and the handler was dead code, making it impossible to attach a
+	// file to a work item (verified: POST → "The requested resource wasn't found.").
+	// Three segments cannot overlap the two-segment dispatcher, so it registers
+	// cleanly.
+	att.POST("/attachments/{$}", h.AttachmentUpload)
 	att.GET("/attachments/{pk}/{$}", h.AttachmentGet)
 	att.PATCH("/attachments/{pk}/{$}", h.AttachmentPatch)
 	att.DELETE("/attachments/{pk}/{$}", h.AttachmentDelete)

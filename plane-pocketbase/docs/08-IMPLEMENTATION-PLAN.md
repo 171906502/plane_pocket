@@ -386,3 +386,70 @@ workspace 前缀下**，但**仍然必须做认证 + 归属校验**（只能看�
 所以 **L3（内容级）验收必须自己造数据**：先用 API 或 fixture 创建一条评论/一个 estimate，
 再断言返回的数组非空、`count > 0`。
 **只断言"返回 200"是不够的** —— 空数组也是 200，而这正是本项目反复踩的坑。
+
+---
+
+## 11. Wave 3 结论（2026-10-10 编排者完成）
+
+Wave 3 的实际工作量比原计划小得多 —— **原计划的主体（`epics` 变体）根本不是缺口**。
+结论先行，逐项证据如下。
+
+### 11.1 ⭐ `epics` 变体：不是缺口，是幽灵
+
+原计划把 "`{serviceType}` 的 `epics` 变体" 列为 Wave 3 主体。**实测推翻：**
+
+- Django 的 URL 配置里**没有任何 `epics` 路径**（`grep -rn "epics" apps/api/plane/ --include=*.py`
+  全库只有 2 处无关命中），也没有 `EpicViewSet`。
+- 我们的 spec（由 Django 生成）**没有一条 epics 端点** —— 与上游一致。
+- 前端**没有 epics 页面**：`app/(all)/[workspaceSlug]/(projects)/projects/(detail)/[projectId]/`
+  下只有 `archives / cycles / intake / issues / modules / pages / views`。
+- `is_epic` 在整个 web 前端**只被读、从不被写**（33 处引用全部是
+  `issue?.is_epic ? EPICS : ISSUES` 这类分支）。我们决定**全新空库**，
+  所以 `is_epic` 恒为 false，`/epics/...` **不可达**。
+
+**结论：实现 `/epics/` 等于发明一个上游不存在的契约。上游 404，我们 404，这是兼容。**
+那些"未服务"的 `epics-detail/`、`epics/list/`、`epics/{}/comments/` 条目从待办清单中**划掉**。
+
+### 11.2 真正的 Wave 3（已全部完成并 L3 实测）
+
+| 项 | 结论 |
+|---|---|
+| **`POST …/issues/{issue_id}/attachments/`** | **handler 早已写好，但没有路由可到** —— 死代码。`ProjectSubresource` 注册为 `/{entity_id}/{action}/{$}`（projects 后 **2** 段），而附件路径是 **3** 段（`issues/{issue_id}/attachments/`），永远匹配不上。补 `att.POST` 后 9 项断言全过（含完整四步流程：元数据 → 上传字节 → PATCH → 列表出现）。 |
+| **`POST …/user-activity/{user_id}/export/`** | Django 有 view（`ExportWorkspaceUserActivityEndpoint`）、前端有入口（profile 页 "Download" 按钮），但从未实现。已补：CSV 下载，7 项断言全过（表头逐列一致、按日过滤、剔除 4 类字段、**CSV 注入转义** `'=SUM(...)`、`<identifier> - <sequence_id>`）。 |
+| **legacy `file-assets/{ws}/{key}/` + `restore/`** | 一直被注释为"与 members 路由冲突故禁用"。实测**真正冲突的是 `workspace-members/me/`**（不是 members），且**冲突是真实的**：注册即 `BuildMux` panic，恢复后全站 502。已用 **catch-all 分发**解决（见下）。 |
+| `assets/v2/workspaces/{slug}/{entity_id}/bulk/` | **不做**。Django 无此 URL（只有 projects 下的 bulk），上游同样 404，属上游缺口；前端调用点在无 projectId 的 else 分支。 |
+
+### 11.3 `file-assets` 的 Go mux 不可表达问题（已解决，值得记录）
+
+`GET/DELETE /api/workspaces/file-assets/{ws}/{key}/` 与
+`GET /api/workspaces/{slug}/workspace-members/me/{$}` **都不可注册**：两者都是 5 段，
+一个把 `file-assets` 钉在第 3 位、一个把 `workspace-members`/`me` 钉在第 4/5 位，
+`/api/workspaces/file-assets/workspace-members/me/` 同时匹配两者且**谁都不更具体**，
+Go 的 ServeMux 直接 panic（Django 靠 URL 顺序解决，Go 没有等价机制）。
+
+**解法**：PocketBase 的 `BuildMux` 只在**没有** `"/"` 路由时才自动补一个 404 兜底
+（`tools/router/router.go:68`）。注册我们自己的 `"/"`，就能在 mux 之前分发这个前缀，
+其余所有路径**原样委托给框架同一个 `NotFoundError`** —— mux 的模式集合一个都没变，
+只有兜底处理函数体不同。`restore/` 是 6 段、无重叠，正常注册，不走兜底。
+
+**验收**：`GET` 次数返回 200 `{"error":"Asset key does not exist","status":false}`
+（未注册时是路由 404）；`DELETE`/`restore` 返回**处理器自己的** 404
+（"The required object does not exist."，区别于路由 404 的
+"The requested resource wasn't found."—— 这个差异本身就是路由已匹配的证据）；
+未匹配路径仍是框架原样 404；`workspace-members/me/` 仍 200。
+
+### 11.4 顺带修掉的第二个真实缺陷
+
+L3 流程测出：**附件元数据响应缺少 `attachment` 键**。
+`IssueAttachmentV2Endpoint`（attachment.py:139-145）返回
+`{upload_data, asset_id, asset_url, **attachment**}`，而通用 v2 上传
+（asset/v2.py）**不含** `attachment`。共享的 `createAsset` 照抄了通用形状，
+而前端 `uploadIssueAttachment` 返回 `signedURLResponse.attachment` →
+拿到 `undefined`。已按 `createInput.attach` 开关补上。
+
+### 11.5 最终状态
+
+- `audit-endpoints.py`：注册 **281 → 328**，UNSERVED **53 → 26**
+  （14 条类别 A 有意剔除 + 12 条 epics 幽灵条目 = 0 条真实缺口）
+- 编排方式：本波仅 2 个真实缺口 + 1 个路由层修复，**规模不足以启动 3 个 agent**，
+  由编排者直接实现并以与 Wave 2 相同的 L3 标准验收。

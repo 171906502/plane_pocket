@@ -146,6 +146,36 @@ python tests/browser/audit-endpoints.py   # 静态列出全部缺口
 | 请求级存储 | `e.Set(k,v)` / `e.Get(k)` |
 | 组类型 | `*router.RouterGroup[*core.RequestEvent]`（包 `pocketbase/tools/router`） |
 
+### A-5 ⭐ 有一些路径在 ServeMux 里**根本无法注册** —— 兜底路由是唯一出口
+
+**症状**：注册一条看似普通的路由，服务**整个起不来** —— 日志里
+`[SafeWrap] recovered from panic: pattern "GET /api/workspaces/file-assets/{workspace_id}/{asset_key}/{$}"
+conflicts with pattern "GET /api/workspaces/{slug}/workspace-members/me/{$}"`，
+随后 PocketBase 恢复了 panic 但**所有接口都返回 502**。
+
+**根因**：两条模式都是 5 段，一条把字面量 `file-assets` 钉在第 3 位，另一条把
+`workspace-members`/`me` 钉在第 4/5 位。请求
+`/api/workspaces/file-assets/workspace-members/me/` **同时匹配两者**，
+且**谁都不比谁更具体** —— Go 1.22+ 的 ServeMux 遇到这种"重叠但无优先级"的模式
+在**注册期**直接 panic。Django 靠 URL **顺序**解决这类冲突，Go 的 mux 没有等价机制。
+`{$}` 锚定救不了它：两条都已锚定，问题出在**中间**某段的字面量/通配之争。
+
+**教训**：
+1. **"注册即 panic，恢复后全站 502"是这类问题的标志性指纹。** 看到 502 而日志里有
+   `conflicts with pattern`，先找那条冲突的路由，别去怀疑数据库或反向代理。
+2. **这类路径只有一条出路：兜底路由（catch-all）。** PocketBase 的 `BuildMux`
+   只在**没有** `"/"` 路由时才自动补一个 404 兜底（`tools/router/router.go:68`）。
+   注册自己的 `"/"`，在处理函数里按**路径前缀**分发到目标 handler，其余路径
+   **原样调用框架的同一个 `NotFoundError`** —— mux 的模式集合一个都没变，
+   只有兜底函数体不同，所以其它路由的 404/405 行为不变。
+   实现见 `internal/handlers/asset/legacy.go` 的 `LegacyFallback`。
+3. **验收要靠"404 的措辞"区分"路由没注册"和"路由注册了但对象不存在"**：
+   路由 404 是 `"The requested resource wasn't found."`，
+   处理器 404 是 `"The required object does not exist."`。
+   两者措辞不同这件事本身就是路由已匹配的证据。
+4. **段数不同就不冲突**：`…/restore/`（6 段）与那条 5 段路由无重叠，可以正常注册。
+   判断冲突先数段，再看字面量与通配的位置。
+
 ---
 
 ## B 类 · PocketBase 数据层

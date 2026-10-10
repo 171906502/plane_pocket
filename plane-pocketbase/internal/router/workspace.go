@@ -53,6 +53,9 @@ func registerWorkspace(e *core.ServeEvent, app core.App) {
 	ws.GET("/user-profile/{user_id}/{$}", h.UserProfile)
 	ws.GET("/user-stats/{user_id}/{$}", h.UserStats)
 	ws.GET("/user-activity/{user_id}/{$}", h.UserActivity)
+	// The profile page's "Download" button (ExportWorkspaceUserActivityEndpoint,
+	// plane/app/urls/workspace.py:143). Returns CSV, not JSON.
+	ws.POST("/user-activity/{user_id}/export/{$}", h.UserActivityExport)
 
 	// Workspace-level work-item reads (cross-project).
 	//
