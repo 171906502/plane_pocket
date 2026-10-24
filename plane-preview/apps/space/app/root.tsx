@@ -43,12 +43,14 @@ export const links: Route.LinksFunction = () => [
   },
 ];
 
-export const headers: Route.HeadersFunction = () => ({
-  "Referrer-Policy": "origin-when-cross-origin",
-  "X-Content-Type-Options": "nosniff",
-  "X-DNS-Prefetch-Control": "on",
-  "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
-});
+// Security headers used to be exported here via `headers`, but react-router's
+// SPA mode (ssr: false) rejects that export. They are now applied by the static
+// host -- see internal/router/static.go `spaceSecurityHeaders` for the Go side,
+// or add the same four headers to your nginx/caddy server block.
+//   Referrer-Policy: origin-when-cross-origin
+//   X-Content-Type-Options: nosniff
+//   X-DNS-Prefetch-Control: on
+//   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (

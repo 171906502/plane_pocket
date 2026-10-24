@@ -19,11 +19,18 @@ func registerIssue(e *core.ServeEvent, app core.App) {
 
 	proj.GET("/issues/{$}", h.List)
 	proj.POST("/issues/{$}", h.Create)
+	// v2 paginated list (IssuePaginatedViewSet) — same envelope, route kept so
+	// the client's sync path resolves.
+	proj.GET("/v2/issues/{$}", h.ListV2)
 	// Plain, non-paginated array — distinct from the paginated collection above.
 	proj.GET("/issues/list/{$}", h.PlainList)
 	proj.GET("/issues/{pk}/{$}", h.Detail)
 	proj.PATCH("/issues/{pk}/{$}", h.Update)
 	proj.DELETE("/issues/{pk}/{$}", h.Delete)
+	// List + per-issue relation expansion (IssueDetailEndpoint). The workspace
+	// level has its own /issues-detail/; this is the project-scoped one the
+	// client switches to when `expand=issue_relation`.
+	proj.GET("/issues-detail/{$}", h.ListDetail)
 
 	// Bulk mutations and the archive/deleted/meta views.
 	proj.POST("/bulk-archive-issues/{$}", h.BulkArchive)
@@ -38,10 +45,12 @@ func registerIssue(e *core.ServeEvent, app core.App) {
 	// segment or `{$}` so it stays an exact ServeMux match; a trailing "/"
 	// would make it a subtree pattern and swallow unrelated sub-paths.
 	//
-	// `{serviceType}` is spelled out as literal `issues/` routes (Wave 3 adds
-	// the `epics/` aliases pointing at the same handlers). The relation and
-	// comment-reaction routes use literal `issues`/`comments` because that is
-	// what their frontend services call.
+	// The frontend has a generic `{serviceType}` branch for `issues` and
+	// `epics`, but the bundled Django URLs/spec define no `/epics/` endpoints,
+	// and the empty-database product flow cannot create epics (see
+	// docs/08-IMPLEMENTATION-PLAN.md §11.1). Do not add aliases here: that would
+	// invent an upstream contract. Relations and comment reactions use literal
+	// `issues`/`comments` paths, matching their frontend services.
 	proj.GET("/issues/{issue_id}/history/{$}", h.History)
 
 	// Description versions live under the literal `work-items/` prefix in
@@ -70,6 +79,22 @@ func registerIssue(e *core.ServeEvent, app core.App) {
 	proj.DELETE("/issues/{issue_id}/issue-relation/{related_id}/{$}", h.DeleteRelation)
 	proj.POST("/issues/{issue_id}/remove-relation/{$}", h.RemoveRelation)
 
+	// Sub-issue tree + single-issue archive (method-level audit gaps; see
+	// internal/handlers/issues/wave3.go for the Django contract notes).
+	proj.GET("/issues/{issue_id}/sub-issues/{$}", h.SubIssues)
+	proj.POST("/issues/{issue_id}/sub-issues/{$}", h.AddSubIssues)
+
+	proj.GET("/issues/{issue_id}/issue-links/{$}", h.ListIssueLinks)
+	proj.POST("/issues/{issue_id}/issue-links/{$}", h.CreateIssueLink)
+	proj.GET("/issues/{issue_id}/issue-links/{pk}/{$}", h.IssueLinkDetail)
+	proj.PATCH("/issues/{issue_id}/issue-links/{pk}/{$}", h.IssueLinkDetail)
+	proj.PUT("/issues/{issue_id}/issue-links/{pk}/{$}", h.IssueLinkDetail)
+	proj.DELETE("/issues/{issue_id}/issue-links/{pk}/{$}", h.IssueLinkDetail)
+
+	proj.GET("/issues/{pk}/archive/{$}", h.ArchivedIssueDetail)
+	proj.POST("/issues/{pk}/archive/{$}", h.ArchiveIssue)
+	proj.DELETE("/issues/{pk}/archive/{$}", h.UnarchiveIssue)
+
 	proj.GET("/comments/{comment_id}/reactions/{$}", h.ListCommentReactions)
 	proj.POST("/comments/{comment_id}/reactions/{$}", h.CreateCommentReaction)
 	proj.DELETE("/comments/{comment_id}/reactions/{reaction}/{$}", h.DeleteCommentReaction)
@@ -90,4 +115,7 @@ func registerIssue(e *core.ServeEvent, app core.App) {
 	// hangs off the workspace group rather than `proj`.
 	ws := workspaceGroup(e, app)
 	ws.GET("/user-issues/{user_id}/{$}", h.UserIssues)
+	// Deep link by human reference ("ENG-42"; IssueDetailIdentifierEndpoint).
+	// Workspace-scoped — the identifier names the project, not a {project_id}.
+	ws.GET("/work-items/{ref}/{$}", h.DetailByIdentifier)
 }

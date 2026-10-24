@@ -25,9 +25,9 @@
 package page
 
 import (
+	"encoding/base64"
+	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,6 +35,7 @@ import (
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/filesystem"
 
 	"github.com/plane-pocketbase/plane-pocketbase/internal/middleware"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/serializers"
@@ -135,11 +136,13 @@ func (h *Handler) Create(e *core.RequestEvent) error {
 			page.Set(field, v)
 		}
 	}
-	// description_* is the collaborative-editor payload consumed by apps/live.
+	// description_* is the collaborative-editor payload consumed by internal/live.
 	page.Set("description_json", jsonDefault(body["description_json"], map[string]any{}))
 	page.Set("description_html", htmlDefault(body["description_html"]))
 	if v, ok := body["description_binary"]; ok {
-		page.Set("description_binary", v)
+		if err := h.setDescriptionBinary(page, v); err != nil {
+			return serializers.Validation(e, "description_binary", err.Error())
+		}
 	}
 	if parent := asString(body["parent"]); parent != "" {
 		if parentPage, _ := serializers.FindByUUID(h.App, "pages", parent); parentPage != nil && parentPage.GetString("workspace") == scope.Workspace.Id {
@@ -165,7 +168,7 @@ func (h *Handler) Detail(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
@@ -194,7 +197,7 @@ func (h *Handler) Update(e *core.RequestEvent) error {
 	if scope.ProjectRole < middleware.RoleMember {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
@@ -223,9 +226,16 @@ func (h *Handler) Update(e *core.RequestEvent) error {
 		}
 		page.Set("access", intValue(newAccess, 0))
 	}
-	for _, field := range []string{"name", "color", "view_props", "logo_props", "is_locked", "description_json", "description_html", "description_binary"} {
+	for _, field := range []string{"name", "color", "view_props", "logo_props", "is_locked", "description_json", "description_html"} {
 		if v, ok := body[field]; ok {
 			page.Set(field, v)
+		}
+	}
+	// `description_binary` is a file field, so it cannot go through the loop
+	// above: the payload is base64 and has to be turned into a stored file.
+	if v, ok := body["description_binary"]; ok {
+		if err := h.setDescriptionBinary(page, v); err != nil {
+			return serializers.Validation(e, "description_binary", err.Error())
 		}
 	}
 	if _, ok := body["description_html"]; ok {
@@ -254,7 +264,7 @@ func (h *Handler) Delete(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
@@ -291,7 +301,7 @@ func (h *Handler) FavoriteCreate(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	collection, err := h.App.FindCollectionByNameOrId("user_favorites")
@@ -322,7 +332,7 @@ func (h *Handler) FavoriteDestroy(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	record, _ := h.App.FindFirstRecordByFilter(
@@ -373,15 +383,15 @@ func (h *Handler) Archive(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
 	if page == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleAdmin && page.GetString("owned_by") != user.Id {
-		return e.JSON(http.StatusBadRequest, map[string]any{"error": "Only the owner or admin can archive the page"})
+	if scope.ProjectRole < middleware.RoleMember && page.GetString("owned_by") != user.Id {
+		return e.JSON(http.StatusBadRequest, map[string]any{"error": "Only the owner or member can archive the page"})
 	}
 	now := time.Now()
 	h.setArchivedRecursive(page, now)
@@ -399,7 +409,7 @@ func (h *Handler) Unarchive(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
@@ -447,12 +457,17 @@ func (h *Handler) ArchivedList(e *core.RequestEvent) error {
 
 // Lock serves POST …/pages/{page_id}/lock/.
 func (h *Handler) Lock(e *core.RequestEvent) error {
-	return h.setLocked(e, true)
+	// PageViewSet.lock is a POST, so ProjectPagePermission's non-safe branch
+	// applies: ADMIN or MEMBER (the owner is admitted earlier by the
+	// `owned_by == user` short-circuit).
+	return h.setLocked(e, true, middleware.RoleMember)
 }
 
 // Unlock serves DELETE …/pages/{page_id}/lock/.
 func (h *Handler) Unlock(e *core.RequestEvent) error {
-	return h.setLocked(e, false)
+	// PageViewSet.unlock is a DELETE, which ProjectPagePermission restricts to
+	// ADMIN for anyone who is not the owner.
+	return h.setLocked(e, false, middleware.RoleAdmin)
 }
 
 // Access serves POST …/pages/{page_id}/access/.
@@ -465,7 +480,7 @@ func (h *Handler) Access(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
@@ -492,7 +507,7 @@ func (h *Handler) DescriptionGet(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
@@ -515,12 +530,17 @@ func (h *Handler) DescriptionPatch(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
 	if page == nil {
 		return serializers.NotFound(e, "")
+	}
+	// PagesDescriptionViewSet is guarded by ProjectPagePermission, whose PATCH
+	// branch is ADMIN/MEMBER — the owner is admitted by the `owned_by` shortcut.
+	if page.GetString("owned_by") != user.Id && scope.ProjectRole < middleware.RoleMember {
+		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	if page.GetBool("is_locked") {
 		return e.JSON(http.StatusBadRequest, map[string]any{"error_code": "PAGE_LOCKED", "error_message": "PAGE_LOCKED"})
@@ -533,10 +553,16 @@ func (h *Handler) DescriptionPatch(e *core.RequestEvent) error {
 		return serializers.BadRequest(e, "Invalid request body.")
 	}
 	if v, ok := body["description_binary"]; ok {
-		page.Set("description_binary", v)
+		if err := h.setDescriptionBinary(page, v); err != nil {
+			return serializers.Validation(e, "description_binary", err.Error())
+		}
 	}
 	if v, ok := body["description_html"]; ok {
 		page.Set("description_html", v)
+		// Django's Page.save() derives this column; without it a page edited
+		// through this endpoint keeps an empty search index (sticky search
+		// filters on `description_stripped`).
+		page.Set("description_stripped", stripTags(asString(v)))
 	}
 	if v, ok := body["description_json"]; ok {
 		page.Set("description_json", v)
@@ -602,7 +628,7 @@ func (h *Handler) RestoreVersion(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
@@ -637,7 +663,7 @@ func (h *Handler) Duplicate(e *core.RequestEvent) error {
 	if scope.ProjectRole < middleware.RoleMember {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
@@ -709,7 +735,7 @@ func (h *Handler) Move(e *core.RequestEvent) error {
 	if scope.ProjectRole < middleware.RoleMember {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
@@ -899,7 +925,13 @@ func (h *Handler) serializeList(e *core.RequestEvent, scope *middleware.Scope, p
 
 // findPage resolves a page by Plane UUID, scoped to the URL project via an
 // active ProjectPage link, and not soft-deleted.
-func (h *Handler) findPage(scope *middleware.Scope, pageUUID string) (*core.Record, error) {
+//
+// It also applies PageViewSet.get_queryset's visibility rule —
+// `Q(owned_by=caller) | Q(access=0)` — so a **private page behaves as absent to
+// everyone but its owner**, whatever their project role. Without it any project
+// member could read, lock, archive or re-describe another user's private page,
+// which ProjectPagePermission denies.
+func (h *Handler) findPage(e *core.RequestEvent, scope *middleware.Scope, pageUUID string) (*core.Record, error) {
 	page, err := serializers.FindByUUID(h.App, "pages", pageUUID)
 	if err != nil || page == nil {
 		return nil, err
@@ -909,6 +941,12 @@ func (h *Handler) findPage(scope *middleware.Scope, pageUUID string) (*core.Reco
 	}
 	if !h.hasProjectLink(page, scope.Project.Id) {
 		return nil, nil
+	}
+	// `access` 1 is PRIVATE_ACCESS, 0 is PUBLIC_ACCESS.
+	if page.GetInt("access") != 0 {
+		if user := middleware.CurrentUser(e); user == nil || page.GetString("owned_by") != user.Id {
+			return nil, nil
+		}
 	}
 	return page, nil
 }
@@ -921,7 +959,7 @@ func (h *Handler) scopedPage(e *core.RequestEvent) (*middleware.Scope, *core.Rec
 	if scope == nil || scope.Project == nil {
 		return nil, nil, serializers.NotFound(e, "")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -990,8 +1028,10 @@ func (h *Handler) replaceLabels(scope *middleware.Scope, page *core.Record, ids 
 	return nil
 }
 
-// setLocked toggles is_locked.
-func (h *Handler) setLocked(e *core.RequestEvent, locked bool) error {
+// setLocked toggles is_locked. `minRole` is the non-owner floor: PageViewSet
+// guards both halves with ProjectPagePermission, which asks ADMIN/MEMBER for a
+// POST and ADMIN for a DELETE, and lets the owner through unconditionally.
+func (h *Handler) setLocked(e *core.RequestEvent, locked bool, minRole int) error {
 	scope := middleware.ScopeOf(e)
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
@@ -1000,12 +1040,15 @@ func (h *Handler) setLocked(e *core.RequestEvent, locked bool) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	page, err := h.findPage(scope, e.Request.PathValue("page_id"))
+	page, err := h.findPage(e, scope, e.Request.PathValue("page_id"))
 	if err != nil {
 		return err
 	}
 	if page == nil {
 		return serializers.NotFound(e, "")
+	}
+	if page.GetString("owned_by") != user.Id && scope.ProjectRole < minRole {
+		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	page.Set("is_locked", locked)
 	if err := h.App.Save(page); err != nil {
@@ -1033,6 +1076,39 @@ func (h *Handler) applyArchived(page *core.Record, at time.Time) {
 	_ = h.App.Save(page)
 }
 
+// descriptionBinaryName is the stored filename. Keeping it constant means a new
+// snapshot replaces the previous one instead of leaving a file per save.
+const descriptionBinaryName = "description.bin"
+
+// setDescriptionBinary stores the collaborative editor's snapshot.
+//
+// `description_binary` is a PocketBase *file* field: the column holds a filename
+// and the bytes live in the record's protected storage. Assigning the base64
+// payload straight to the field — what this used to do — stores it as a
+// filename, which then fails validation on save, so `GET …/description/` never
+// returned anything and the editor's offline fallback could never restore a
+// document from the server.
+func (h *Handler) setDescriptionBinary(page *core.Record, raw any) error {
+	value := asString(raw)
+	if value == "" {
+		page.Set("description_binary", "")
+		return nil
+	}
+	data, err := base64.StdEncoding.DecodeString(value)
+	if err != nil || len(data) == 0 {
+		// Not base64: the client echoed back the filename it was given. Keep it
+		// so a PATCH that only changes the HTML does not drop the snapshot.
+		page.Set("description_binary", value)
+		return nil
+	}
+	file, err := filesystem.NewFileFromBytes(data, descriptionBinaryName)
+	if err != nil {
+		return err
+	}
+	page.Set("description_binary", file)
+	return nil
+}
+
 // readBinary returns the stored description_binary file contents, or an empty
 // slice when none was saved.
 func (h *Handler) readBinary(page *core.Record) []byte {
@@ -1040,12 +1116,19 @@ func (h *Handler) readBinary(page *core.Record) []byte {
 	if filename == "" {
 		return []byte{}
 	}
-	collection, err := h.App.FindCollectionByNameOrId("pages")
+	fsys, err := h.App.NewFilesystem()
 	if err != nil {
 		return []byte{}
 	}
-	path := filepath.Join(h.App.DataDir(), "storage", collection.Id, page.Id, filename)
-	data, err := os.ReadFile(path)
+	defer fsys.Close()
+
+	reader, err := fsys.GetReader(page.BaseFilesPath() + "/" + filename)
+	if err != nil {
+		return []byte{}
+	}
+	defer reader.Close()
+
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return []byte{}
 	}

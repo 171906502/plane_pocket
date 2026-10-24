@@ -327,6 +327,39 @@ print([r[0] for r in c.execute(\"select name from _collections\")])"
 **注意**：`go.mod` 里是 `replace github.com/pocketbase/pocketbase => ../pocketbase-master`，
 所以升级就是换那个目录的内容，不需要改 `go.mod` 的版本号。
 
+### 4.1 升级与回滚（实测结论，2026-10-15）
+
+**升级前先跑一次演练**，它会在一份真实数据上把下面每一条都验一遍：
+
+```bash
+cd plane-pocketbase
+bash tests/upgrade-drill.sh          # 12 断言；证据落 tests/evidence/
+```
+
+实测得到的四条硬结论（**不要凭直觉推翻它们**）：
+
+| 事实 | 实测结果 | 含义 |
+|---|---|---|
+| 重复 `migrate up` | 0 条重放，数据指纹不变 | 部署新版本本身是安全的；不会重复建表 |
+| 迁移后的库起服 | `/api/instances/` 返回 200 | 升级后应用能正常跑 |
+| `migrate down` | **要交互确认**（`(y/N)`），且**连数据一起毁掉** | **它不是回滚手段**。无人值守场景还会直接挂住 |
+| 迁移历史行丢失 | `migrate up` 报 `Collection name must be unique` | 部分恢复/部署中断会卡在这；**用备份恢复即可救回** |
+
+**回滚的标准动作**（唯一推荐路径）：
+
+```bash
+# 1. 升级前
+bash tests/backup.sh --label pre-upgrade      # 拿到 backups/<ts>-pre-upgrade
+
+# 2. 出问题要回滚
+bash tests/restore.sh backups/<ts>-pre-upgrade
+```
+
+`restore.sh` 会先校验 sha256、把当前 `pb_data` `mv` 成 `pb_data.bak-<epoch>`
+（**不删**），恢复后再逐表对账。演练已证明它能**逐字节复现升级前的状态**。
+
+`migrate history-sync` 用于清理指向已不存在迁移文件的历史行（实测有效）。
+
 ---
 
 ## 5. 验证阶梯（从便宜到贵，逐步升级）
@@ -364,6 +397,8 @@ curl -s -b "$COOKIE" -o NUL -w '%{http_code}\n' \
 | 加 collection | 迁移自检 + `run-all.sh --fresh` |
 | 改认证/CSRF/CORS | `run-all.sh --fresh`（认证问题会污染所有后续步骤） |
 | 升级前端 / PocketBase | `run-all.sh --fresh` + `audit-endpoints.py` |
+| 改动触碰 `pb_migrations/` 或准备发版 | 上面全部 + `tests/backup-drill.sh` + `tests/upgrade-drill.sh` |
+| 改动备份/恢复脚本本身 | `tests/backup-drill.sh` + `tests/upgrade-drill.sh` |
 
 ---
 

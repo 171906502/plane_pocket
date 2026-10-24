@@ -13,7 +13,7 @@
 | **Node** | 22.x | `v22.22.2` | 前端 dev server 与浏览器测试脚本都用它 |
 | **pnpm** | 见下方 ⚠️ | `12.8.1`（系统） | **有版本陷阱，务必读完本节** |
 | Git | 任意 | PortableGit 1.2.0 | |
-| Redis | 任意（有服务即可） | 系统自带 | **只有 `apps/live` 需要**，见 §5.5 |
+| Redis | **不需要** | — | `apps/live` 才需要，而协作端已由纯 Go 的 `internal/live` 提供（2026-10-23），见 §5.6 |
 | 浏览器 | Microsoft Edge（Chromium） | `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe` | 验收脚本用 `playwright-core` 直接驱动本机 Edge，**不需要下载浏览器** |
 
 ### ⚠️ pnpm 版本陷阱（必读）
@@ -167,7 +167,7 @@ bash stack.sh start
 | web | `3000` | `/` | 主应用 |
 | admin | `3001` | `/god-mode/` | 实例管理台 |
 | space | `3002` | `/` | 公开只读项目视图 |
-| live | `3100` | `/live/` | Yjs 协作编辑服务。**`/live/` 返回 404 是设计如此** |
+| live | `3100` | `/live/` | 上游 Yjs 协作服务，**dev 栈里仍在跑但不再是必需**：协作端已由 Go 的 `internal/live`（同进程 `:8000/live/collaboration`）提供，见 §5.6 |
 
 也可以只起单个：`bash stack.sh start backend`（或 `web` / `admin` / `space` / `live`）
 
@@ -334,23 +334,31 @@ plane-preview/apps/web/.env
 
 > 自动化版本：`bash run-all.sh --fresh` 会从空库跑完整个链路（见 [`05-TESTING.md`](05-TESTING.md)）。
 
-### 5.6 `apps/live` 与 Redis
+### 5.6 Pages 协作端 —— **已由 `internal/live` 提供，不需要 `apps/live`**
 
-`apps/live` 是富文本编辑器背后的 Yjs 协作服务，**Page（页面）功能依赖它**。
+> **2026-10-23 更新**：协作端已经用**纯 Go** 实现在后端进程内（`internal/live/`，
+> 路由 `GET /live/collaboration`），**既不需要 Redis 也不需要 Node**，单端口部署即可用。
+> 浏览器端到端验收（打开/输入/重载/双标签页/重启后回放）见
+> [`10-REMAINING-WORK.md`](10-REMAINING-WORK.md) §3.4。
+> 本节下面的内容保留为**历史决策与"为什么必须有协作端"的推导**，以及将来若改用
+> 上游 `apps/live` 时的操作参考。
 
-**为什么不是可选项**：编辑器连不上 live 时会退回 `usePageFallback`，
-它的 effect 在每次 `page.description_html` 变化时都会重跑，
+`apps/live` 是上游的 Yjs 协作服务。**为什么编辑器必须有协作端**：编辑器连不上 live 时会退回
+`usePageFallback`，它的 effect 在每次 `page.description_html` 变化时都会重跑，
 于是"断线后保存"永远不收敛，应用会**无限循环** PATCH/GET
-`.../pages/<id>/description/`，把渲染进程卡死。live 服务在，编辑器保持 `connected`，就不会走 fallback。
+`.../pages/<id>/description/`，把渲染进程卡死。协作端在，编辑器保持 `connected`，就不会走 fallback。
 
-它需要 **Redis**（6379）。本机用系统自带的 Redis 服务即可。
+→ 现在这个"协作端"就是 `internal/live`，所以**不需要隐藏 Pages 编辑入口**。
 
-启动方式（非热更新版）：
+若将来改回上游 `apps/live`（**不建议**），它需要 **Redis**（6379），启动方式：
 
 ```bash
 cd plane_pocket/plane-preview/apps/live
 node --env-file=.env .      # 需要先 build 出 dist
 ```
+
+> 另注：`apps/live` 的 Redis **在单实例下完全闲置**（只做 pub/sub + 跨实例锁），
+> 详见 [`10-REMAINING-WORK.md`](10-REMAINING-WORK.md) §3.1。
 
 ---
 

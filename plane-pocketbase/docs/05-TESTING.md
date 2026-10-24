@@ -108,6 +108,34 @@ bash run-all.sh <PROJECT_ID> # 显式指定 project id
 
 `--fresh` 的实现是 **`mv .fe-run .fe-run.pre-run-<时间戳>` + `mkdir`**，从不 `rm`（项目约定）。
 
+#### 4.2.1 同一套 case 跑「单端口 Go 服务」
+
+三个 origin 现在可由环境变量覆盖（默认仍是 dev 栈的 3000/3001/3002），
+所以不用改脚本就能验证「前端编译后由单一 Go 二进制托管」的形态：
+
+```bash
+cd plane-pocketbase/tests/browser
+. ./node-env.sh; resolve_node
+export PLANE_WEB_URL=http://localhost:8000
+export PLANE_ADMIN_URL=http://localhost:8000    # 脚本自己拼 /god-mode/
+export PLANE_SPACE_URL=http://localhost:8000    # 脚本自己拼 /spaces/...
+export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
+
+"$NODE" "$(cygpath -w "$PWD/run1-bootstrap.mjs")"
+"$NODE" "$(cygpath -w "$PWD/run2-project.mjs")"
+"$NODE" "$(cygpath -w "$PWD/run3-issue.mjs")"     # 日志末尾有 PROJECT_ID=
+"$NODE" "$(cygpath -w "$PWD/run4-project-pages.mjs")" <PROJECT_ID>   # 富文本步骤，慢
+"$NODE" "$(cygpath -w "$PWD/run5-publish-space.mjs")" <PROJECT_ID>
+```
+
+前提：
+
+- 单端口服务已起（见 [04 §4.4](04-DEPLOYMENT.md)），三个 `PLANE_*_DIR` 指向 `build/client`；
+- **库必须是全新的**（`is_setup_done=false`），否则 `run1` 走登录分支、`admin@hrms.local` 不存在会失败；
+- `run-all.sh` **不能**用于这个形态——它会用 `start-stack.sh` 起 dev 栈（3000/3001/3002）；
+- `run4` 要过富文本编辑器，单次可能 5 分钟以上，别用默认短超时。
+
+
 ### 4.3 `run-one.sh` —— 单点迭代
 
 ```bash
@@ -134,7 +162,42 @@ bash stack.sh reset   [--start]    # 清库（两次确认 + 自动备份），�
 
 `run-all.sh` / `run-one.sh` 里跑的 Node 由 `node-env.sh` 的 `resolve_node()` 解析
 （不是硬编码路径）—— 托管运行时目录名带版本后缀，升级后会变，写死会让
-`apps/live` 静默起不来，见 C-13。
+`apps/live` 静默起不来，见 C-13。（协作端已改由 Go 的 `internal/live` 提供，
+栈里不再需要 `apps/live`；此处保留为**前瞻性防护**：将来若启用 live 时脚本不会再踩这个坑。）
+
+**单端口模式下跑这些用例**：不要用 `run-one.sh`（它会起 5 个 dev 服务，占用 8000）。
+用 `run-chain-single.sh`：
+
+```bash
+cd plane-pocketbase/tests/browser
+bash run-chain-single.sh --fresh          # 用临时数据目录 + 自起服务 + 跑 run1→run5 + 停服务
+bash run-chain-single.sh                  # 复用已经在 :8000 上的服务（库不清空）
+bash run-chain-single.sh --from 4 <PROJECT_UUID>   # 只跑 pages + publish
+```
+
+**为什么整链必须 `--fresh`**：`run1` / `run2` 是按"空实例"写的 ——
+`run1` 的 A1 依赖 admin 的注册/登录表单（已登录时 `/god-mode/` 直接进 dashboard，没有表单可填），
+A4 依赖 onboarding 的工作区表单（已初始化就不渲染），`run2` 的 B2 依赖空态的"创建第一个项目"入口。
+在已有数据的库上跑，这几步会**真实失败**，不是回归。`--fresh` 用 `PLANE_DATA_DIR`
+指向一个全新的 `.fe-run-chain-<时间戳>`，**不碰你的 `.fe-run`**；它要求 `:8000` 空闲，
+且只停自己起的服务。
+
+两个容易踩的点（详见 `06` E-6）：
+
+1. **`run*.mjs` 退出码 0 不代表通过**——步骤失败只写一行 `  !! <step> FAILED: …` 然后继续。
+   `run-chain-single.sh` 会统计 `!!` 行数，`>0` 即整体 FAIL；`run-all.sh` 目前只看退出码。
+2. **`PLANE_WEB_URL` / `PLANE_ADMIN_URL` / `PLANE_SPACE_URL` 三个都要指到 `:8000`**，
+   只设第一个会让 run1 去打 dev 栈的 `:3001/god-mode/`（连接被拒，然后级联失败）。
+   脚本里已经替你设好。
+
+**单端口实例上的发布前门禁**：
+
+```bash
+bash tests/release-check.sh --fast --full-single
+```
+
+`--full` 走 `run-all.sh --fresh`（起 dev 栈）；`--full-single` 走
+`run-chain-single.sh --fresh`（起单端口服务），两者都是"从空库开始"的等价回归。
 
 **`stop-stack.sh` 不是可有可无的**：服务是用 `nohup … &` + `disown` 起的，
 **故意活得比 shell 久**，所以**关掉终端不会停掉它们**。没有 stop 的话，
@@ -327,6 +390,25 @@ ERROR GET /api/workspaces/hrms/not-a-route/
 ---
 
 ## 9. 完整验收流程（发布前）
+
+> **自动化脚本（2026-10-11）**：`bash tests/release-check.sh` 已把本节的静态层
+> 全部串起来（build / vet / 单元测试 / 迁移自检 / 双审计基线比对），加 `--fast`
+> 跳过全量单元测试（保留路由锚点护栏），加 `--full` 追加动态层
+> `run-all.sh --fresh`。审计 UNSERVED 超过记录基线即判失败（基线可用环境变量
+> 覆盖）。下面的手工流程保留作为脚本内部步骤的说明。
+>
+> **发布前另加两个演练（2026-10-15）**——它们验证的是"出事能不能救回来"，
+> 与上面的功能验收是正交的两件事：
+>
+> ```bash
+> bash tests/backup-drill.sh     # 19 断言：WAL 下在线备份不丢数据、恢复逐字节一致（含 live/ 正文日志）、
+>                                #           篡改被拒、保留策略（证据 tests/evidence/）
+> bash tests/upgrade-drill.sh    # 12 断言：升级幂等、起服正常、migrate down 会毁数据、
+>                                #           备份恢复能回滚（结论见 03 §4.1）
+> ```
+>
+> 两者都会在 `tests/evidence/` 留下带时间戳的证据文件；失败时保留 `.drill-*` /
+> `.upgrade-*` 现场供排查。
 
 ```bash
 cd plane-pocketbase

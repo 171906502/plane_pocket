@@ -14,8 +14,8 @@
 |---|---|---|
 | **我要把它跑起来** | [`02-GETTING-STARTED.md`](02-GETTING-STARTED.md) → [`06-PITFALLS.md`](06-PITFALLS.md) | 从零到浏览器里能点，以及踩坑对照表 |
 | **我要加/改后端接口** | [`01-ARCHITECTURE.md`](01-ARCHITECTURE.md) → [`03-ITERATION-GUIDE.md`](03-ITERATION-GUIDE.md) → [`05-TESTING.md`](05-TESTING.md) | 架构约束、标准改法、怎么验证 |
-| **我要把它部署上线** | [`04-DEPLOYMENT.md`](04-DEPLOYMENT.md) → [`07-STATE-AND-ROADMAP.md`](07-STATE-AND-ROADMAP.md) | 构建/反代/HTTPS/备份，以及**哪些还没做完** |
-| **我是新来的 agent** | 本文件 → [`01-ARCHITECTURE.md`](01-ARCHITECTURE.md) → [`07-STATE-AND-ROADMAP.md`](07-STATE-AND-ROADMAP.md) | 全局心智模型 + 当前真实进度 + 下一步 |
+| **我要把它部署上线** | [`04-DEPLOYMENT.md`](04-DEPLOYMENT.md) → [`11-TASKLIST.md`](11-TASKLIST.md) | 构建/反代/HTTPS/备份，以及**哪些还没做完、按什么顺序做** |
+| **我是新来的 agent** | 本文件 → [`01-ARCHITECTURE.md`](01-ARCHITECTURE.md) → [`11-TASKLIST.md`](11-TASKLIST.md) | 全局心智模型 + 当前真实进度 + 下一步任务卡 |
 
 > ⚠️ **动手前必读**：如果你只读一份，读 [`06-PITFALLS.md`](06-PITFALLS.md)。
 > 这个项目里最耗时的 bug 都不是"不会写代码"，而是踩了一个静默失败的环境/框架陷阱
@@ -34,7 +34,11 @@ docs/
 ├── 04-DEPLOYMENT.md         生产部署、反向代理、HTTPS、备份、运维
 ├── 05-TESTING.md            测试分层、浏览器验收、证据规范、静态审计
 ├── 06-PITFALLS.md           ★ 陷阱与雷区总集（症状 → 根因 → 修法）
-└── 07-STATE-AND-ROADMAP.md  已完成 / 未完成 / 优先级 / 契约文档索引
+├── 07-STATE-AND-ROADMAP.md  已完成 / 未完成 / 优先级 / 契约文档索引
+├── 08-IMPLEMENTATION-PLAN.md 分波次实施方案与验收证据
+├── 09-SECURITY-AUDIT.md     ★ 逐端点守卫审计（对照 permissions.md 52 行矩阵）
+├── 10-REMAINING-WORK.md     历史决策与实施记录（live 中继 §3.3–§3.5 等）
+└── 11-TASKLIST.md           ★ 实现完整度复核 + 后续任务清单（排期从这里开始）
 ```
 
 **契约冻结文档**（在 `plane-pocketbase/spec/`，是实现的**权威来源**，不要凭记忆写代码）：
@@ -109,7 +113,7 @@ plane_pocket/
 | **分页信封（Envelope）** | Plane 的游标分页响应体：`{count, total_results, next_cursor, next_page_results, results, ...}`。字段名和字段顺序都是承重的 |
 | **分组信封（GroupedEnvelope）** | 当 `group_by_field_name` 存在时，`results` 从数组变成以 group id 为键的对象，且**每个分组都出现（含空组）** |
 | **证据（Evidence）** | 测试产出的可审查物：截图、网络日志、脚本退出码。存放在 `tests/evidence/` 与 `tests/logs/` |
-| **栈（Stack）** | 五个服务：后端 `:8000`、web `:3000`、admin `:3001`、space `:3002`、live `:3100` |
+| **栈（Stack）** | dev 栈五个服务：后端 `:8000`、web `:3000`、admin `:3001`、space `:3002`、上游 live `:3100`（live 已非必需，协作端在 Go 后端内，见 `10` §3.3） |
 | **`.fe-run`** | 后端运行时数据目录（SQLite 库 + 上传文件）。`run-all.sh --fresh` 会把它挪走重建，**从不删除** |
 
 ---

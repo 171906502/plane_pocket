@@ -11,14 +11,26 @@ package router
 import (
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/hook"
 	"github.com/pocketbase/pocketbase/tools/router"
 
+	"github.com/plane-pocketbase/plane-pocketbase/internal/handlers/health"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/handlers/meta"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/middleware"
+)
+
+// Ids for the two root-level Plane middlewares. They are named (rather than
+// anonymous via BindFunc) so the /health probe can Unbind them: a liveness
+// endpoint must answer before the session/CSRF layer, otherwise a broken
+// session store would look like a dead process.
+const (
+	authMiddlewareID = "planeAuth"
+	csrfMiddlewareID = "planeCSRF"
+	gzipMiddlewareID = "planeGzip"
 )
 
 // Register wires every Plane route group onto the PocketBase router.
@@ -27,8 +39,8 @@ func Register(app core.App) {
 		// Session resolution runs for every route; CSRF is enforced on unsafe
 		// methods only. Both are transparent to a client that already behaves
 		// like Plane's frontend.
-		e.Router.BindFunc(middleware.Auth(app))
-		e.Router.BindFunc(middleware.CSRFProtect())
+		e.Router.Bind(&hook.Handler[*core.RequestEvent]{Id: authMiddlewareID, Func: middleware.Auth(app)})
+		e.Router.Bind(&hook.Handler[*core.RequestEvent]{Id: csrfMiddlewareID, Func: middleware.CSRFProtect()})
 
 		// Plane's frontends call the API cross-origin (web :3000 → API :8000)
 		// with `axios withCredentials: true`, so every response — including
@@ -47,7 +59,23 @@ func Register(app core.App) {
 			Priority: apis.DefaultCorsMiddlewarePriority - 1,
 		})
 
+		// On-the-fly gzip for everything below (API JSON and the static
+		// bundles served by RegisterStatic). Bound just inside CORS so the
+		// OPTIONS preflight, which CORS answers with a bodiless 204 without
+		// calling Next, never reaches it; the explicit priority also keeps it
+		// off the activity logger's slot (-1040). PLANE_GZIP=0 is the escape
+		// hatch for a reverse proxy that compresses on its own.
+		if os.Getenv("PLANE_GZIP") != "0" {
+			e.Router.Bind(&hook.Handler[*core.RequestEvent]{
+				Id:       gzipMiddlewareID,
+				Func:     middleware.Gzip(),
+				Priority: apis.DefaultActivityLoggerMiddlewarePriority + 1,
+			})
+		}
+
 		registerMeta(e, app)
+		registerHealth(e, app)
+		registerLive(e, app)
 
 		// Plane route groups. Each domain owns its own file so that parallel
 		// work never has to touch a shared file. Registration order does not
@@ -97,6 +125,22 @@ func Register(app core.App) {
 // authorized scope.
 func workspaceGroup(e *core.ServeEvent, app core.App) *router.RouterGroup[*core.RequestEvent] {
 	return e.Router.Group("/api/workspaces/{slug}").BindFunc(middleware.ResolveWorkspace(app))
+}
+
+// registerHealth exposes an unauthenticated readiness probe that also verifies
+// the data database, so a reverse proxy or systemd can tell "process alive"
+// from "database broken".
+//
+// PocketBase's own GET /api/health returns 200 unconditionally and never touches
+// the database, so it cannot answer that question — this is a distinct path on
+// purpose rather than a shadow of the built-in route.
+//
+// The route is unbound from the auth/CSRF middlewares (both bound on the root
+// group above) so the probe stays reachable exactly when the session layer is
+// the thing that is broken.
+func registerHealth(e *core.ServeEvent, app core.App) {
+	e.Router.GET("/health", health.New(app).Check).
+		Unbind(authMiddlewareID, csrfMiddlewareID)
 }
 
 // registerMeta exposes liveness/version information for the compatibility layer.

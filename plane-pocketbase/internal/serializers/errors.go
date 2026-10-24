@@ -37,6 +37,16 @@ func Detail(message string) ErrorBody {
 	return ErrorBody{"detail": message}
 }
 
+// ErrorObject builds an {"error": message} body. DRF's generic permission
+// classes answer with {"detail": ...}, but the Plane *app* API's own inline
+// denials use this shape: `plane.app.permissions.allow_permission` returns
+// {"error": "You don't have the required permissions."} and several handler
+// bodies (e.g. WorkspaceViewViewSet.destroy) return {"error": ...} too. Both
+// shapes reach the frontends, so match the endpoint's upstream source.
+func ErrorObject(message string) ErrorBody {
+	return ErrorBody{"error": message}
+}
+
 // WriteError sends a DRF-shaped error response with the given HTTP status.
 func WriteError(e *core.RequestEvent, status int, body ErrorBody) error {
 	return e.JSON(status, body)

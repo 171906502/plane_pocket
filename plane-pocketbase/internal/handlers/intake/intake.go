@@ -15,13 +15,66 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/plane-pocketbase/plane-pocketbase/internal/filters"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/middleware"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/serializers"
 )
+
+// csvValues splits a comma-separated query value into trimmed non-empty parts.
+func csvValues(raw string) []string {
+	out := make([]string, 0)
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+// earliestDay parses the values as dates and returns the earliest one — the
+// widest lower bound of a multi-selected "past N days" window.
+func earliestDay(values []string) (time.Time, bool) {
+	var earliest time.Time
+	found := false
+	for _, value := range values {
+		if len(value) < 10 {
+			continue
+		}
+		day, err := time.Parse("2006-01-02", value[:10])
+		if err != nil {
+			continue
+		}
+		if !found || day.Before(earliest) {
+			earliest = day
+			found = true
+		}
+	}
+	return earliest, found
+}
+
+// intakeOrderBy maps the inbox sorting wire values (`-issue__created_at` —
+// Django ORM traversal with `__`) onto PocketBase relation sort syntax
+// (`-issue.created_at`). Unknown values keep the default.
+func intakeOrderBy(raw string) string {
+	switch raw {
+	case "-issue__created_at", "issue__created_at":
+		return strings.ReplaceAll(raw, "__", ".")
+	case "-issue__updated_at", "issue__updated_at":
+		return strings.ReplaceAll(raw, "__", ".")
+	case "-issue__sequence_id", "issue__sequence_id":
+		return strings.ReplaceAll(raw, "__", ".")
+	case "created_at", "-created_at", "updated_at", "-updated_at":
+		return raw
+	default:
+		return "-created_at"
+	}
+}
 
 // Handler holds the app dependency for the intake routes.
 type Handler struct {
@@ -40,7 +93,7 @@ func (h *Handler) IntakesList(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	user := middleware.CurrentUser(e)
@@ -61,7 +114,7 @@ func (h *Handler) IntakesCreate(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	body := map[string]any{}
@@ -112,7 +165,7 @@ func (h *Handler) IntakeUpdate(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	_, intake, err := h.scopedIntake(e)
@@ -142,7 +195,7 @@ func (h *Handler) IntakeDestroy(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	_, intake, err := h.scopedIntake(e)
@@ -207,9 +260,35 @@ func (h *Handler) IssuesList(e *core.RequestEvent) error {
 	if len(statuses) > 0 {
 		filter += " && " + intFilter("status", statuses, params)
 	}
-	if priority := e.Request.URL.Query().Get("priority"); priority != "" {
-		filter += " && issue.priority = {:priority}"
-		params["priority"] = priority
+
+	// The inbox filter bar sends comma-separated multi-values (project-inbox
+	// store `inboxIssueQueryParams`): priority/state/created_by on the related
+	// issue, assignees/labels through the issue bridge tables, and past-window
+	// dates on the submission itself.
+	query := e.Request.URL.Query()
+	if clause := filters.InPredicate("issue.priority", csvValues(query.Get("priority")), params); clause != "" {
+		filter += " && " + clause
+	}
+	if ids := filters.ResolveIDs(h.App, "states", csvValues(query.Get("state"))); len(ids) > 0 {
+		filter += " && " + filters.InPredicate("issue.state", ids, params)
+	}
+	if ids := filters.ResolveIDs(h.App, "users", csvValues(query.Get("created_by"))); len(ids) > 0 {
+		filter += " && " + filters.InPredicate("issue.created_by", ids, params)
+	}
+	if ids := filters.BridgeIssueIDs(h.App, "issue_assignees", "assignee", "users", csvValues(query.Get("assignees"))); len(ids) > 0 {
+		filter += " && " + filters.InPredicate("issue", ids, params)
+	}
+	if ids := filters.BridgeIssueIDs(h.App, "issue_labels", "label", "labels", csvValues(query.Get("labels"))); len(ids) > 0 {
+		filter += " && " + filters.InPredicate("issue", ids, params)
+	}
+	// Date windows: the UI offers "past 1 week / 1 month…" multi-selects, so
+	// the joined dates are lower bounds and the widest (earliest) one wins.
+	for _, key := range []string{"created_at", "updated_at"} {
+		if lower, ok := earliestDay(csvValues(query.Get(key))); ok {
+			paramKey := "since" + key
+			params[paramKey] = lower.Format("2006-01-02 00:00:00.000Z")
+			filter += " && " + key + " >= {:" + paramKey + "}"
+		}
 	}
 
 	// A guest without guest_view_all_features sees only their own submissions.
@@ -224,7 +303,7 @@ func (h *Handler) IssuesList(e *core.RequestEvent) error {
 		Collection: "intake_issues",
 		Filter:     filter,
 		Params:     params,
-		Sort:       "-created_at",
+		Sort:       intakeOrderBy(query.Get("order_by")),
 		PerPage:    perPage,
 		Cursor:     cursor,
 	}, func(row *core.Record) any {
@@ -337,7 +416,7 @@ func (h *Handler) IssueUpdate(e *core.RequestEvent) error {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
 	issue, _ := h.App.FindRecordById("issues", row.GetString("issue"))
-	if scope.ProjectRole < middleware.RoleAdmin && !middleware.IsCreator(e, issue) {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleAdmin) && !middleware.IsCreator(e, issue) {
 		return e.JSON(http.StatusForbidden, map[string]any{"error": "Only admin or creator can update the intake work items"})
 	}
 
@@ -413,12 +492,12 @@ func (h *Handler) IssueUpdate(e *core.RequestEvent) error {
 // the issue's creator. Pending/rejected/snoozed/duplicate issues also delete the
 // underlying issue (IntakeIssueViewSet.destroy).
 func (h *Handler) IssueDelete(e *core.RequestEvent) error {
-	scope, row, err := h.scopedIntakeIssue(e)
+	_, row, err := h.scopedIntakeIssue(e)
 	if err != nil || row == nil {
 		return err
 	}
 	issue, _ := h.App.FindRecordById("issues", row.GetString("issue"))
-	if scope.ProjectRole < middleware.RoleAdmin && !middleware.IsCreator(e, issue) {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleAdmin) && !middleware.IsCreator(e, issue) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	switch row.GetInt("status") {

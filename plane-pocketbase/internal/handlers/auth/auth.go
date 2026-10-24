@@ -10,6 +10,7 @@ package auth
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"math/big"
 	"net/http"
@@ -197,10 +198,77 @@ func (h *Handler) Session(e *core.RequestEvent) error {
 	})
 }
 
+// Credential kinds written by deliverCredential. The `kind=` marker inside each
+// line lets an operator tell a magic sign-in code from a password-reset token
+// when both land in the same delivery file.
+const (
+	kindMagicSignIn   = "magic-sign-in"
+	kindPasswordReset = "password-reset"
+)
+
+// mailLogPath returns the dedicated delivery file for emailed bearer
+// credentials (magic-link codes and password-reset tokens), or "" when unset
+// (credentials then fall back to the process log).
+//
+// PLANE_MAGIC_LOG is the primary/back-compat variable; PLANE_MAIL_LOG is an
+// override that wins when both are set.
+func mailLogPath() string {
+	if v := strings.TrimSpace(os.Getenv("PLANE_MAIL_LOG")); v != "" {
+		return v
+	}
+	return strings.TrimSpace(os.Getenv("PLANE_MAGIC_LOG"))
+}
+
+// deliverMagicCode hands a magic sign-in code to the operator. Plane emails it;
+// with no SMTP transport configured the code is written to a dedicated log file
+// (or the process log) instead. It is a thin wrapper over deliverCredential so
+// that magic codes and password-reset tokens share one channel.
+func deliverMagicCode(email, code string) {
+	deliverCredential(kindMagicSignIn, email, code)
+}
+
+// deliverResetToken hands a password-reset token to the operator through the
+// same channel as magic codes, so an operator looks in one place for both.
+func deliverResetToken(email, token string) {
+	deliverCredential(kindPasswordReset, email, token)
+}
+
+// deliverCredential hands a bearer credential to the operator. Plane emails it;
+// with no SMTP transport configured we append it to a dedicated log file so the
+// credential stays out of the general application log. When the file is unset,
+// or cannot be opened or written, the credential goes to the process log
+// (matching Plane's dev-mode behaviour) — a credential must never be swallowed.
+//
+// The file is opened append-only with 0600 — these are bearer credentials and
+// must not be world-readable.
+func deliverCredential(kind, email, code string) {
+	now := time.Now().UTC()
+	line := fmt.Sprintf("%s\tkind=%s\t%s\t%s\texpires_at=%s\n",
+		now.Format(time.RFC3339), kind, email, code,
+		now.Add(magicCodeTTL).Format(time.RFC3339))
+
+	path := mailLogPath()
+	if path == "" {
+		log.Printf("[plane] %s code for %s: %s", kind, email, code)
+		return
+	}
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		log.Printf("[plane] mail log %s unavailable (%v); %s for %s: %s", path, err, kind, email, code)
+		return
+	}
+	defer f.Close()
+	if _, err := f.WriteString(line); err != nil {
+		log.Printf("[plane] mail log write to %s failed (%v); %s for %s: %s", path, err, kind, email, code)
+	}
+}
+
 // MagicGenerate serves POST /auth/magic-generate/. Email delivery is out of
 // scope for this slice, so the code is stored in the app runtime store and
-// logged instead of being sent; the response shape matches Plane's
-// MagicGenerateEndpoint (`{"key": "magic_<email>"}`).
+// delivered to a dedicated log file (or the process log) instead of being sent;
+// the response shape matches Plane's MagicGenerateEndpoint
+// (`{"key": "magic_<email>"}`).
 func (h *Handler) MagicGenerate(e *core.RequestEvent) error {
 	var body struct {
 		Email string `json:"email"`
@@ -214,7 +282,7 @@ func (h *Handler) MagicGenerate(e *core.RequestEvent) error {
 	code := magicCode()
 	key := "magic_" + email
 	h.App.Store().Set(key, magicEntry{Code: code, Expires: time.Now().Add(magicCodeTTL)})
-	log.Printf("[plane] magic sign-in code for %s: %s", email, code)
+	deliverMagicCode(email, code)
 
 	return e.JSON(http.StatusOK, map[string]any{"key": key})
 }
@@ -256,7 +324,8 @@ func (h *Handler) MagicSignIn(e *core.RequestEvent) error {
 }
 
 // ForgotPassword serves POST /auth/forgot-password/. SMTP is out of scope, so
-// the reset token is generated and logged rather than emailed.
+// the reset token is generated and delivered through the same dedicated log
+// file (or process-log fallback) as magic sign-in codes rather than emailed.
 func (h *Handler) ForgotPassword(e *core.RequestEvent) error {
 	var body struct {
 		Email string `json:"email"`
@@ -272,7 +341,7 @@ func (h *Handler) ForgotPassword(e *core.RequestEvent) error {
 	}
 	token := randomHex(20)
 	h.App.Store().Set("password_reset_"+token, magicEntry{Code: email, Expires: time.Now().Add(magicCodeTTL)})
-	log.Printf("[plane] password reset token for %s: %s", email, token)
+	deliverResetToken(email, token)
 	return e.JSON(http.StatusOK, map[string]any{"message": "Check your email to reset your password"})
 }
 

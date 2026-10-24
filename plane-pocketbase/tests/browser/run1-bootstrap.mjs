@@ -74,8 +74,19 @@ await step("A3-profile", async () => {
     await settle(page, 500, 4000);
     await shot(page, "05-onboarding-profile-filled", "填写个人资料");
     await page.click("button[type=submit]");
-    await page.waitForTimeout(4500);
-    await settle(page, 1200, 12000);
+    // The workspace step is a lazily-loaded route chunk. On a cold cache (first
+    // ever visit in this profile) it can take much longer than the old fixed
+    // 4.5s, which made A4 fail with a 30s fill timeout against a spinner.
+    // Wait for the actual element instead of the clock; retry the click once in
+    // case it landed while react-hook-form was still settling.
+    const wsName = page.locator('input[name="name"]').first();
+    try {
+      await wsName.waitFor({ state: "visible", timeout: 45000 });
+    } catch {
+      log.log("  workspace form did not appear; retrying submit once");
+      await page.click("button[type=submit]").catch(() => {});
+      await wsName.waitFor({ state: "visible", timeout: 45000 });
+    }
   }
   log.log("url=" + page.url());
   await describe(page);

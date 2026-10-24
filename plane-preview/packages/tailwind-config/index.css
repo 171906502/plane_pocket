@@ -1,4 +1,12 @@
-@import "tailwindcss";
+/*
+ * Explicit subpath on purpose: Vite's postcss-import resolves bare specifiers
+ * with the `resolve` package, which only understands `main`/`style`, not the
+ * `exports` map that Tailwind v4 relies on. Bare "tailwindcss" therefore fails
+ * with ENOENT <app>/tailwindcss during `react-router build`. The subpath
+ * resolves as a plain file and is equivalent (index.css is what the package's
+ * `style` field points at anyway).
+ */
+@import "tailwindcss/index.css";
 /*
  * Design tokens + animations come from @makeplane/propel, which supersedes the
  * variables.css / animations.css this package used to ship. It defines every

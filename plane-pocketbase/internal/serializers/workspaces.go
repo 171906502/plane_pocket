@@ -131,6 +131,7 @@ func WorkspaceUserPreference(r *core.Record) map[string]any {
 		sortOrder = float64(65535)
 	}
 	return map[string]any{
+		"key":        r.GetString("key"),
 		"is_pinned":  r.GetBool("is_pinned"),
 		"sort_order": sortOrder,
 	}

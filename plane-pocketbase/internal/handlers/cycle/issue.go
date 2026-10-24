@@ -2,10 +2,12 @@ package cycle
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/plane-pocketbase/plane-pocketbase/internal/filters"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/middleware"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/serializers"
 )
@@ -21,7 +23,7 @@ func (h *Handler) IssuesList(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	cycle, err := h.findCycle(scope, e.Request.PathValue("cycle_id"))
@@ -34,17 +36,33 @@ func (h *Handler) IssuesList(e *core.RequestEvent) error {
 
 	ids := h.bridgeIssueIDs("cycle_issues", "cycle", cycle.Id)
 	params := dbx.Params{}
-	filter := "deleted_at = '' && archived_at = '' && is_draft = false && " + orIDFilter("id", ids, params)
-	if stateID := e.Request.URL.Query().Get("state_id"); stateID != "" {
-		if state, _ := serializers.FindByUUID(h.App, "states", stateID); state != nil {
-			filter += " && state = {:state}"
-			params["state"] = state.Id
+	filter := "deleted_at = '' && archived_at = '' && is_draft = false && " + orIDFilter("id", "i", ids, params)
+	// Django's CycleIssueViewSet filters `state_id`/`priority` with
+	// MultipleChoiceFilter, so the query string carries comma-separated values
+	// (e.g. `?priority=urgent,high` from the active-cycle urgent/high board).
+	if raw := e.Request.URL.Query().Get("state_id"); raw != "" {
+		stateIDs := make([]string, 0)
+		for _, part := range strings.Split(raw, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			if state, _ := serializers.FindByUUID(h.App, "states", part); state != nil {
+				stateIDs = append(stateIDs, state.Id)
+			}
+		}
+		if len(stateIDs) > 0 {
+			filter += " && " + orIDFilter("state", "st", stateIDs, params)
 		}
 	}
-	if priority := e.Request.URL.Query().Get("priority"); priority != "" {
-		filter += " && priority = {:priority}"
-		params["priority"] = priority
+	if raw := e.Request.URL.Query().Get("priority"); raw != "" {
+		if clause := orValues("priority", raw, params); clause != "" {
+			filter += " && " + clause
+		}
 	}
+	// Rich filters: the shared issue-filter helper serialises the expression
+	// tree into the `filters` query param for every issue board.
+	filter = filters.Apply(h.App, filter, params, scope.Project.Id, e.Request.URL.Query().Get("filters"))
 
 	perPage, cursor := serializers.ListParams(e, serializers.MaxPerPage)
 	envelope, err := serializers.Paginate(h.App, serializers.ListQuery{
@@ -75,7 +93,7 @@ func (h *Handler) IssuesCreate(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	cycle, err := h.findCycle(scope, e.Request.PathValue("cycle_id"))
@@ -151,7 +169,7 @@ func (h *Handler) IssueDetail(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	link, issue, err := h.findCycleIssue(scope, e.Request.PathValue("cycle_id"), e.Request.PathValue("issue_id"))
@@ -173,7 +191,7 @@ func (h *Handler) IssueUpdate(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	link, issue, err := h.findCycleIssue(scope, e.Request.PathValue("cycle_id"), e.Request.PathValue("issue_id"))
@@ -193,7 +211,7 @@ func (h *Handler) IssueDelete(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	link, _, err := h.findCycleIssue(scope, e.Request.PathValue("cycle_id"), e.Request.PathValue("issue_id"))

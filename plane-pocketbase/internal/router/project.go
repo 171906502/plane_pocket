@@ -47,6 +47,14 @@ func registerProject(e *core.ServeEvent, app core.App) {
 	proj.PATCH("/{$}", h.Update).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
 	proj.DELETE("/{$}", h.Delete).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
 	proj.GET("/states/{$}", h.States)
+	// State write halves (StateViewSet create / retrieve / partial_update /
+	// destroy) — project ADMIN for mutations; the GET was registered alone,
+	// so creating or editing a state from project settings 404'd.
+	proj.POST("/states/{$}", h.StatesCreate).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
+	proj.GET("/states/{state_id}/{$}", h.StateDetail)
+	proj.PATCH("/states/{state_id}/{$}", h.StateDetail).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
+	proj.PUT("/states/{state_id}/{$}", h.StateDetail).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
+	proj.DELETE("/states/{state_id}/{$}", h.StateDetail).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
 	proj.GET("/labels/{$}", h.Labels)
 
 	// Archive the project (ProjectArchiveUnarchiveEndpoint.post). ADMIN or
@@ -68,6 +76,12 @@ func registerProject(e *core.ServeEvent, app core.App) {
 	// (and `…/members/` would otherwise collide with `…/members/{pk}/`).
 	proj.GET("/project-members/me/{$}", h.MyMembership)
 	proj.GET("/members/{$}", h.Members)
+	// Project member write halves (ProjectMemberViewSet create / retrieve /
+	// partial_update / destroy) — project ADMIN for mutations.
+	proj.POST("/members/{$}", h.MembersCreate).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
+	proj.GET("/members/{pk}/{$}", h.MemberDetail)
+	proj.PATCH("/members/{pk}/{$}", h.MemberDetail).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
+	proj.DELETE("/members/{pk}/{$}", h.MemberDetail).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
 	proj.GET("/user-properties/{$}", h.UserProperties)
 	proj.PATCH("/user-properties/{$}", h.UserProperties)
 	proj.GET("/issue-labels/{$}", h.IssueLabels)
@@ -84,9 +98,16 @@ func registerProject(e *core.ServeEvent, app core.App) {
 
 	// Publish (deploy-board) management — spec ids
 	// `project.project-deploy-boards.list_create` / `.detail`.
+	//
+	// `DeployBoardViewSet` is guarded by `ProjectMemberPermission` (not
+	// `allow_permission`), whose non-safe branch is a plain
+	// `ProjectMember.role__in=[ADMIN, MEMBER]` lookup: ADMIN **or MEMBER**, and
+	// deliberately no workspace-Admin bypass — so a workspace Admin holding a
+	// Guest project role is refused here even though every `allow_permission`
+	// row would admit them.
 	proj.GET("/project-deploy-boards/{$}", h.DeployBoards)
-	proj.POST("/project-deploy-boards/{$}", h.DeployBoards).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
+	proj.POST("/project-deploy-boards/{$}", h.DeployBoards).BindFunc(middleware.RequireProjectMemberRole(middleware.RoleMember))
 	proj.GET("/project-deploy-boards/{pk}/{$}", h.DeployBoardDetail)
-	proj.PATCH("/project-deploy-boards/{pk}/{$}", h.DeployBoardDetail).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
-	proj.DELETE("/project-deploy-boards/{pk}/{$}", h.DeployBoardDetail).BindFunc(middleware.RequireProjectRole(middleware.RoleAdmin))
+	proj.PATCH("/project-deploy-boards/{pk}/{$}", h.DeployBoardDetail).BindFunc(middleware.RequireProjectMemberRole(middleware.RoleMember))
+	proj.DELETE("/project-deploy-boards/{pk}/{$}", h.DeployBoardDetail).BindFunc(middleware.RequireProjectMemberRole(middleware.RoleMember))
 }

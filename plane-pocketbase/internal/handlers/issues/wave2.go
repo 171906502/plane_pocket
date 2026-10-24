@@ -238,7 +238,7 @@ func (h *Handler) UpdateComment(e *core.RequestEvent) error {
 	if comment == nil {
 		return e.JSON(http.StatusNotFound, map[string]any{"error": "The required object does not exist."})
 	}
-	if !middleware.IsCreator(e, comment) && scope.ProjectRole < middleware.RoleAdmin {
+	if !middleware.IsCreator(e, comment) && !middleware.ProjectRoleAtLeast(e, middleware.RoleAdmin) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 
@@ -273,7 +273,7 @@ func (h *Handler) DeleteComment(e *core.RequestEvent) error {
 	if comment == nil {
 		return e.JSON(http.StatusNotFound, map[string]any{"error": "The required object does not exist."})
 	}
-	if !middleware.IsCreator(e, comment) && scope.ProjectRole < middleware.RoleAdmin {
+	if !middleware.IsCreator(e, comment) && !middleware.ProjectRoleAtLeast(e, middleware.RoleAdmin) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	if err := h.App.Delete(comment); err != nil {
@@ -859,6 +859,10 @@ func (h *Handler) ListRelations(e *core.RequestEvent) error {
 
 // CreateRelations serves POST …/issues/{issue_id}/issue-relation/
 // (IssueRelationViewSet.create). Body: `{relation_type, issues:[uuid,...]}`.
+//
+// IssueRelationViewSet is guarded by ProjectEntityPermission, whose non-safe
+// branch is a plain `ProjectMember.role__in=[ADMIN, MEMBER]` lookup — so unlike
+// the @allow_permission rows there is **no** workspace-Admin bypass here.
 func (h *Handler) CreateRelations(e *core.RequestEvent) error {
 	scope := middleware.ScopeOf(e)
 	if scope == nil || scope.Project == nil {
@@ -867,6 +871,9 @@ func (h *Handler) CreateRelations(e *core.RequestEvent) error {
 	user := middleware.CurrentUser(e)
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
+	}
+	if scope.ProjectRole < middleware.RoleMember {
+		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	issue := h.projectIssue(scope, pathUUID(e, "issue_id"))
 	if issue == nil {
@@ -928,10 +935,16 @@ func (h *Handler) CreateRelations(e *core.RequestEvent) error {
 // DeleteRelation serves DELETE …/issues/{issue_id}/issue-relation/{related}/
 // (client-only route — no Django counterpart). `{related}` is the related
 // issue's UUID, which is what IssueRelationSerializer exposes as `id`.
+//
+// No Django route exists for this method, so the guard mirrors the sibling
+// create/remove_relation paths: ProjectEntityPermission's non-safe branch.
 func (h *Handler) DeleteRelation(e *core.RequestEvent) error {
 	scope := middleware.ScopeOf(e)
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
+	}
+	if scope.ProjectRole < middleware.RoleMember {
+		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	issue := h.projectIssue(scope, pathUUID(e, "issue_id"))
 	if issue == nil {
@@ -957,10 +970,14 @@ func (h *Handler) DeleteRelation(e *core.RequestEvent) error {
 
 // RemoveRelation serves POST …/issues/{issue_id}/remove-relation/
 // (IssueRelationViewSet.remove_relation). Body: `{related_issue}`.
+// Same ProjectEntityPermission non-safe branch as create — no ws-Admin bypass.
 func (h *Handler) RemoveRelation(e *core.RequestEvent) error {
 	scope := middleware.ScopeOf(e)
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
+	}
+	if scope.ProjectRole < middleware.RoleMember {
+		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	issue := h.projectIssue(scope, pathUUID(e, "issue_id"))
 	if issue == nil {
@@ -1043,7 +1060,7 @@ func (h *Handler) BulkUpdateDates(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 

@@ -197,6 +197,22 @@ func (h *Handler) PatchMe(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, serializers.UserFull(h.App, user))
 }
 
+// DeleteMe serves DELETE /api/users/me/ (UserEndpoint.delete) — the settings
+// page's "Deactivate account" (`user.service.ts:230 deactivateAccount`).
+// Django deactivates rather than destroys the row: `is_active` flips to false
+// and the session is gone on the next request. Answer 204.
+func (h *Handler) DeleteMe(e *core.RequestEvent) error {
+	user := middleware.CurrentUser(e)
+	if user == nil {
+		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
+	}
+	user.Set("is_active", false)
+	if err := h.App.Save(user); err != nil {
+		return serializers.Validation(e, "detail", err.Error())
+	}
+	return e.NoContent(http.StatusNoContent)
+}
+
 // ProjectRoles serves GET /api/users/me/workspaces/{slug}/project-roles/
 // (UserProjectRolesEndpoint).
 //

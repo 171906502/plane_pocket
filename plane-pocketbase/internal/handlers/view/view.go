@@ -32,6 +32,7 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/plane-pocketbase/plane-pocketbase/internal/filters"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/middleware"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/serializers"
 )
@@ -99,12 +100,29 @@ func (h *Handler) ProjectCreate(e *core.RequestEvent) error {
 }
 
 // ProjectDetail serves GET …/projects/{project_id}/views/{pk}/.
+//
+// Visibility is owner-or-public (`Q(owned_by=user) | Q(access=1)` in
+// IssueViewViewSet.get_queryset). A guest without `guest_view_all_features`
+// asking for someone else's private view gets Django's explicit 403 rather than
+// a 404 — that branch exists in `IssueViewViewSet.retrieve` and the message is
+// asserted verbatim.
 func (h *Handler) ProjectDetail(e *core.RequestEvent) error {
-	record, err := h.findProjectView(e)
+	scope := middleware.ScopeOf(e)
+	user := middleware.CurrentUser(e)
+	if scope == nil || scope.Project == nil {
+		return serializers.NotFound(e, "")
+	}
+	record, err := h.findProjectViewAny(e)
 	if err != nil {
 		return err
 	}
 	if record == nil {
+		return serializers.NotFound(e, "The required object does not exist.")
+	}
+	if user == nil || (record.GetString("owned_by") != user.Id && record.GetInt("access") != 1) {
+		if scope.ProjectRole == middleware.RoleGuest && !scope.Project.GetBool("guest_view_all_features") {
+			return e.JSON(http.StatusForbidden, map[string]any{"error": "You are not allowed to view this issue"})
+		}
 		return serializers.NotFound(e, "The required object does not exist.")
 	}
 	return e.JSON(http.StatusOK, serializers.IssueView(h.App, record, h.isViewFavorite(e, record)))
@@ -159,6 +177,9 @@ func (h *Handler) ProjectIssues(e *core.RequestEvent) error {
 		params["user"] = user.Id
 	}
 	filter = applyViewIssueFilters(h.App, view, filter, params)
+	// Rich filters passed on the query string (the web client also sends them
+	// when it fetches view issues through the generic endpoints).
+	filter = filters.Apply(h.App, filter, params, scope.Project.Id, e.Request.URL.Query().Get("filters"))
 
 	perPage, cursor := serializers.ListParams(e, serializers.MaxPerPage)
 	envelope, err := serializers.Paginate(h.App, serializers.ListQuery{
@@ -259,7 +280,8 @@ func (h *Handler) ProjectViewsUpdate(e *core.RequestEvent) error {
 		return serializers.NotFound(e, "")
 	}
 	if scope.ProjectMember == nil {
-		return serializers.Forbidden(e, "Forbidden")
+		// ProjectUserViewsEndpoint: {"error": "Forbidden"} + 403.
+		return serializers.WriteError(e, http.StatusForbidden, serializers.ErrorObject("Forbidden"))
 	}
 	body := map[string]any{}
 	if err := e.BindBody(&body); err != nil {
@@ -285,7 +307,9 @@ func (h *Handler) WorkspaceViewsUpdate(e *core.RequestEvent) error {
 		return serializers.NotFound(e, "")
 	}
 	if scope.WorkspaceMember == nil {
-		return serializers.Forbidden(e, "Forbidden")
+		// WorkspaceMemberUserViewsEndpoint resolves the membership with a bare
+		// .get(); a non-member never reaches the write.
+		return serializers.WriteError(e, http.StatusForbidden, serializers.ErrorObject("Forbidden"))
 	}
 	body := map[string]any{}
 	if err := e.BindBody(&body); err != nil {
@@ -352,13 +376,15 @@ func (h *Handler) createView(e *core.RequestEvent, scope *middleware.Scope, user
 	return record, nil
 }
 
-// updateView applies a partial update to a saved view, enforcing the lock and
-// owner-only rules IssueViewViewSet applies before saving.
+// updateView applies a partial update to a saved view, enforcing the same
+// decision order as Django: the `@allow_permission(allowed_roles=[],
+// creator=True, model=IssueView)` decorator first (403), then the `is_locked`
+// guard, then the owner-only body check (both 400).
 func (h *Handler) updateView(e *core.RequestEvent, projectScoped bool) error {
 	var record *core.Record
 	var err error
 	if projectScoped {
-		record, err = h.findProjectView(e)
+		record, err = h.findProjectViewAny(e)
 	} else {
 		record, err = h.findWorkspaceView(e)
 	}
@@ -367,6 +393,12 @@ func (h *Handler) updateView(e *core.RequestEvent, projectScoped bool) error {
 	}
 	if record == nil {
 		return serializers.NotFound(e, "The required object does not exist.")
+	}
+	// An empty role list admits the creator and (project-scoped only) a
+	// workspace Admin — not a project Admin who is not a workspace Admin.
+	if !allowPermission(e, record, projectScoped) {
+		return serializers.WriteError(e, http.StatusForbidden,
+			serializers.ErrorObject("You don't have the required permissions."))
 	}
 	user := middleware.CurrentUser(e)
 	if record.GetBool("is_locked") {
@@ -399,11 +431,16 @@ func (h *Handler) updateView(e *core.RequestEvent, projectScoped bool) error {
 
 // destroyView soft-deletes a view and hard-deletes its favourites (and, for
 // project views, its recent visits) — mirroring IssueViewViewSet.destroy.
+//
+// Django's `@allow_permission(allowed_roles=[ROLE.ADMIN], creator=True)` runs
+// first (403), then the body re-checks the **raw** project-member role, not the
+// workspace-Admin promotion ResolveProject applies — a workspace Admin whose
+// project role is 15 is admitted by the decorator but rejected by the body.
 func (h *Handler) destroyView(e *core.RequestEvent, projectScoped bool) error {
 	var record *core.Record
 	var err error
 	if projectScoped {
-		record, err = h.findProjectView(e)
+		record, err = h.findProjectViewAny(e)
 	} else {
 		record, err = h.findWorkspaceView(e)
 	}
@@ -413,6 +450,10 @@ func (h *Handler) destroyView(e *core.RequestEvent, projectScoped bool) error {
 	if record == nil {
 		return serializers.NotFound(e, "The required object does not exist.")
 	}
+	if !allowPermission(e, record, projectScoped, middleware.RoleAdmin) {
+		return serializers.WriteError(e, http.StatusForbidden,
+			serializers.ErrorObject("You don't have the required permissions."))
+	}
 	user := middleware.CurrentUser(e)
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
@@ -420,7 +461,9 @@ func (h *Handler) destroyView(e *core.RequestEvent, projectScoped bool) error {
 	scope := middleware.ScopeOf(e)
 	isAdmin := false
 	if projectScoped {
-		isAdmin = scope.ProjectRole >= middleware.RoleAdmin
+		// Django's destroy body re-checks the **raw** project-member role (20) —
+		// not the workspace role, which is what the decorator's bypass uses.
+		isAdmin = scope.ProjectMember != nil && scope.ProjectMember.GetInt("role") >= middleware.RoleAdmin
 	} else {
 		isAdmin = scope.WorkspaceRole >= middleware.RoleAdmin
 	}
@@ -439,11 +482,46 @@ func (h *Handler) destroyView(e *core.RequestEvent, projectScoped bool) error {
 	return e.NoContent(http.StatusNoContent)
 }
 
-// findProjectView resolves a non-deleted view in the resolved project that the
-// caller may see (owner or public).
-func (h *Handler) findProjectView(e *core.RequestEvent) (*core.Record, error) {
+// allowPermission ports plane.app.permissions.allow_permission for the
+// saved-view endpoints. Django wraps each method in
+// `@allow_permission(allowed_roles=…, creator=True, model=IssueView)`; the
+// decision order is:
+//
+//  1. creator short-circuit — an active workspace member whose id is on the
+//     row's `created_by` passes regardless of role;
+//  2. the role list, matched against the URL level's **raw** membership role;
+//  3. project-scoped calls only: a workspace Admin who is also an active
+//     project member passes regardless of project role.
+//
+// Everything else is Django's 403 "You don't have the required permissions."
+// An empty `roles` therefore admits the creator (and, project-scoped, workspace
+// Admins) only — which is what makes view updates owner-only.
+func allowPermission(e *core.RequestEvent, record *core.Record, projectScoped bool, roles ...int) bool {
 	scope := middleware.ScopeOf(e)
 	user := middleware.CurrentUser(e)
+	if scope == nil || user == nil || scope.WorkspaceMember == nil {
+		return false
+	}
+	if record != nil && record.GetString("created_by") == user.Id {
+		return true
+	}
+	for _, role := range roles {
+		if projectScoped {
+			if scope.ProjectMember != nil && scope.ProjectMember.GetInt("role") == role {
+				return true
+			}
+		} else if scope.WorkspaceRole == role {
+			return true
+		}
+	}
+	return projectScoped && scope.ProjectMember != nil && scope.WorkspaceRole >= middleware.RoleAdmin
+}
+
+// findProjectViewAny resolves a non-deleted view in the resolved project
+// *without* the owner-or-public visibility filter, so callers can tell "absent"
+// (404) apart from "present but private to someone else" (Django's guest 403).
+func (h *Handler) findProjectViewAny(e *core.RequestEvent) (*core.Record, error) {
+	scope := middleware.ScopeOf(e)
 	if scope == nil || scope.Project == nil {
 		return nil, serializers.NotFound(e, "")
 	}
@@ -455,6 +533,17 @@ func (h *Handler) findProjectView(e *core.RequestEvent) (*core.Record, error) {
 		record.GetString("workspace") != scope.Workspace.Id ||
 		record.GetString("deleted_at") != "" {
 		return nil, nil
+	}
+	return record, nil
+}
+
+// findProjectView resolves a non-deleted view in the resolved project that the
+// caller may see (owner or public).
+func (h *Handler) findProjectView(e *core.RequestEvent) (*core.Record, error) {
+	user := middleware.CurrentUser(e)
+	record, err := h.findProjectViewAny(e)
+	if err != nil || record == nil {
+		return record, err
 	}
 	if user == nil || (record.GetString("owned_by") != user.Id && record.GetInt("access") != 1) {
 		return nil, nil

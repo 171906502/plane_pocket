@@ -52,6 +52,8 @@ plane-pocketbase (Go 单二进制 + PocketBase + SQLite)   ← 我们写的
    └─ loadAuthToken（从 Authorization 头解析 token → e.Auth）
         │
 2. 我们注册的全局中间件（router.go，按注册顺序）
+   ├─ middleware.Gzip()          ≥1KB 的文本响应压 gzip（优先级 -1040，紧跟 CORS；
+   │                            所以 preflight 的 204 根本不经过它）
    ├─ middleware.Auth(app)      从 session-id / admin-session-id cookie 解析用户
    │                            只在 e.Auth 仍为空时才查 cookie（不覆盖 token 认证）
    ├─ middleware.CSRFProtect()  非安全方法做 double-submit 校验
@@ -163,7 +165,8 @@ plane-pocketbase/
 ├── internal/middleware/    请求上下文
 │   ├── auth.go              会话 cookie、CSRF、登录/登出辅助
 │   ├── scope.go             ★ Scope 解析（workspace/project/角色）、角色守卫
-│   └── apikey.go            X-Api-Key（api/v1 那套）
+│   ├── apikey.go            X-Api-Key（api/v1 那套）
+│   └── gzip.go              响应压缩（≥1KB 的文本类；跳过 Range / SSE / 已压缩格式）
 │
 ├── pb_migrations/          PocketBase collection 定义（12 个迁移，按 wave 组织）
 │
@@ -427,6 +430,8 @@ record.GetString/GetInt/GetBool/GetDateTime/GetStringSlice(field)
 | D3 | **全新空库，不迁 Postgres 数据** | 迁移期数据一致性成本远高于价值；目标是可部署的新实例 | 写数据迁移脚本 |
 | D4 | 去掉 OAuth，只留邮箱密码 + Magic Link | 减少外部依赖与配置面 | 保留全部登录方式 |
 | D5 | 保留 `apps/live`（Yjs 协作编辑） | **不是可选项**：编辑器连不上 live 会退回 `usePageFallback`，其 effect 每次 description 变化都重跑，导致 PATCH/GET 无限循环卡死渲染 | 砍掉 rich-text 协作 |
+| D5′ | **`apps/live` 暂不实现**（2026-10-16，**收窄 D5 的部署范围**） | live 侧 Redis 只做 pub/sub + 跨实例锁，**单实例下完全闲置**（源码级分析见 `10-REMAINING-WORK.md` §3.1）；改造属改上游服务代码，收益不在目标内 | 部署 live + Redis / 改造成无 Redis 单实例 |
+| D5″ | **协作端改由 `internal/live` 提供**（2026-10-23，**取代 D5′**） | 用户要求"不引入 Redis 也要让 Pages 能用"。纯 Go 中继实现 Hocuspocus 帧 + yjs 更新落盘回放，与后端同进程同端口，**既不需要 Redis 也不需要 Node**；浏览器端到端已验收（`10-REMAINING-WORK.md` §3.4） | 继续部署 `apps/live` + Redis |
 | D6 | PocketBase 原生 id 与 Plane UUID 并存 | 见 §4 | 改 PocketBase 主键 / 改前端 |
 | D7 | 所有路由 `{$}` 锚定 + AST 护栏 | 子树模式的静默 200 是本项目最高成本的 bug 类 | 靠注释和记性 |
 | D8 | PocketBase 当**库**用而非当二进制用 | 需要自定义 HTTP 表面，PocketBase 的默认 API 形状与 Plane 不同 | 用 PocketBase 二进制 + 反向代理改写 |
@@ -434,6 +439,17 @@ record.GetString/GetInt/GetBool/GetDateTime/GetStringSlice(field)
 
 > D5 特别值得一提：这不是"顺手保留"，而是**发现编辑器有死循环后才知道它必须有**。
 > 详见 `tests/WORKFLOW_TEST_REPORT.md` 缺陷 #10。
+>
+> **⚠ D5′ 与 D5 的关系（2026-10-16）**：D5 说的"必须有"针对的是**当初要交付 Page 富文本协作**这个前提；
+> **2026-10-23 更新**：D5″ 取代了 D5′——协作端由纯 Go 的 `internal/live` 提供，
+> 死循环前提**已经消失**（编辑器始终 `connected`，不再退回 `usePageFallback`），
+> Pages 富文本编辑入口**可以正常暴露**。下面这段是 D5′ 时期的推理，保留作背景。
+>
+> D5′ 收窄了交付范围——**Page 富文本协作不在目标内**，故 live 不部署。
+> 代价是 D5 里那个死循环前提**依然存在**：只要 Pages 富文本编辑入口对用户可见且 live 不在，
+> 就会退回 `usePageFallback` 并无限 PATCH/GET。**因此 D5′ 的落地条件是「不暴露 Pages 富文本编辑入口」**，
+> 见 `04` §9 上线清单与 `06` D-9。**不是"死循环消失了"，而是"绕开了会触发它的入口"。**
+> 若将来要恢复 Page 协作编辑，须先撤销 D5′ 并按 `10` §3.1 §C 的"单实例"方案改造 live。
 
 ---
 

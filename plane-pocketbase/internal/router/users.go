@@ -14,6 +14,9 @@ func registerUsers(e *core.ServeEvent, app core.App) {
 
 	e.Router.GET("/api/users/me/{$}", h.Me)
 	e.Router.PATCH("/api/users/me/{$}", h.PatchMe)
+	// Account deactivation (UserEndpoint.delete — user.service.ts
+	// deactivateAccount). Without it the settings page's delete action 405s.
+	e.Router.DELETE("/api/users/me/{$}", h.DeleteMe)
 	e.Router.GET("/api/users/me/profile/{$}", h.Profile)
 	e.Router.PATCH("/api/users/me/profile/{$}", h.PatchProfile)
 	e.Router.GET("/api/users/me/settings/{$}", h.Settings)

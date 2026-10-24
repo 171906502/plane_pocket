@@ -60,7 +60,7 @@ func (h *Handler) ActiveCycles(e *core.RequestEvent) error {
 
 	params := dbx.Params{"workspace": scope.Workspace.Id}
 	filter := "workspace = {:workspace} && deleted_at = '' && archived_at = '' && " +
-		orIDFilter("project", projectIDs, params)
+		orIDFilter("project", "p", projectIDs, params)
 
 	perPage, cursor := serializers.ListParams(e, serializers.MaxPerPage)
 	envelope, err := serializers.Paginate(h.App, serializers.ListQuery{

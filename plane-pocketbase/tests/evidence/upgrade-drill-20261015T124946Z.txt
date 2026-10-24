@@ -1,0 +1,45 @@
+plane-pocketbase upgrade drill
+started: 2026-10-15T12:49:47Z
+migrations in tree: 13
+
+[1m== 1. build + migrate + seed (simulates a running installation) ==[0m
+     applied=13 migrations, _migrations rows=21, issues=12
+[32mPASS[0m installation created (13 migrations)
+[32mPASS[0m seeded data present (12 issues)
+
+[1m== 2. pre-upgrade backup ==[0m
+[32mPASS[0m rollback point: .upgrade-1792068585-675/backups/20261015T125012Z-pre-upgrade
+
+[1m== A. re-run 'migrate up' with the new build (no-op expected) ==[0m
+[32mPASS[0m 0 migrations re-applied — deploy is idempotent
+[32mPASS[0m data untouched by the upgrade
+
+[1m== B. boot the app against the migrated database ==[0m
+[32mPASS[0m server booted and answered 200 on /api/instances/ (1112 bytes)
+
+[1m== C. 'migrate down' as a rollback strategy (expected: DESTRUCTIVE) ==[0m
+     'migrate down' prompted for confirmation and accepted 'y' (interactive-only)
+[32mPASS[0m reverting 21 migrations destroyed application data (issues=-1, was 12)
+     => rollback must be 'restore the backup', never 'migrate down'
+
+[1m== D. rollback by restoring the pre-upgrade backup ==[0m
+[32mPASS[0m restore exited 0
+[32mPASS[0m rollback reproduced the pre-upgrade state exactly (db + storage)
+[32mPASS[0m application data recovered (12 issues)
+
+[1m== E. recovery when a migration-history row is missing ==[0m
+     simulating: '1759000013_init_dashboards.go' applied in the DB but its history row is gone
+deleted rows: 1
+     'migrate up' exited non-zero (re-applying a snapshot migration on an existing schema):
+     2026/10/15 20:50:50 failed to apply migration 1759000013_init_dashboards.go: create dashboards: name: Collection name must be unique (case insensitive)..
+[32mPASS[0m backup restore recovers from a lost history row
+
+[1m== F. 'migrate history-sync' ==[0m
+[32mPASS[0m history-sync dropped the dangling reference (22 -> 21 rows)
+
+[1m== verdict ==[0m
+[1m12 passed, 0 failed[0m
+evidence: /d/ai-work/plane_pocket/plane-pocketbase/tests/evidence/upgrade-drill-20261015T124946Z.txt
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":80,"threshold":50,"scope":"turn","targets":["D:/ai-work/plane_pocket/plane-pocketbase/.upgrade-1792068585-675"],"targetCount":1}
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":50,"threshold":50,"scope":"turn","targets":["D:/ai-work/plane_pocket/plane-pocketbase/.upgrade-bin.exe"],"targetCount":1}
+(scratch could not be removed on this host — delete by hand: .upgrade-1792068585-675)

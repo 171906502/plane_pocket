@@ -535,6 +535,19 @@ kill_port() { netstat -ano | grep LISTENING | grep ":$1 " | awk '{print $NF}' | 
 `start-stack.sh` 还会在首次等待失败后**重启一次前端**再等一轮。
 
 **相关**：沙箱批量删除保护可以用 `CODEBUDDY_SAFE_DELETE_ENABLED=0` 关掉（启动脚本已设）。
+**必须走 `start-stack.sh`**：它会在 nohup 之前 `export` 这个变量。手敲
+`./node_modules/.bin/react-router dev --port 3000` 会绕开它，然后被 typegen 的
+`fs.rm('.react-router/types')` 打死（117 个文件 > 阈值 50）：
+
+```
+Error: [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED]
+       {"count":117,"threshold":50,"scope":"turn", ...}
+    at watch (.../@react-router/dev/dist/typegen-*.js)
+Node.js v22.22.2
+```
+
+症状是**启动 5 秒后无提示退出、日志停在 `Local: http://127.0.0.1:3000/`**，
+很容易误判成"还在冷启动"。
 
 ---
 
@@ -807,6 +820,13 @@ echo "code=[$code]"          # 期望 [000]；若是 [000000] 就是踩了这个
 缺了它编辑器会退化成 `usePageFallback`，在 `.../pages/<id>/description/` 上
 **无限 PATCH/GET 打转**（见 **D-9**）。所以这行 WARNING 的代价是"某天编辑器开始抽风"。
 
+> **2026-10-16 备注（N-10 暂不实现）**：既然 `apps/live` 决定**暂不部署**，
+> 本条与 #10 目前**不会触发**（没有 live 可起）。保留于此，是因为**将来一旦启用 live，坑照旧存在**，
+> 且启用时务必先修脚本里写死的版本化路径。见 `01` D5′、`10-REMAINING-WORK.md` §3.1。
+>
+> **2026-10-23 更新**：协作端已改由 Go 的 `internal/live` 提供，**`apps/live` 不再是运行时依赖**，
+> 本条只影响"还想跑 dev 栈里的 live"这一种情况。
+
 **根因**：托管 Node 运行时放在**带版本后缀**的目录里，后缀每次升级都会变：
 
 ```
@@ -846,6 +866,462 @@ bash -c '. tests/browser/node-env.sh; resolve_node; echo "$NODE"; "$NODE" --vers
 **推广**：**凡是"外部工具的位置"，都不要写死路径。** 版本化目录（node/python/go 的
 托管运行时）、`node_modules/.bin`、临时目录，都属于这一类。写死路径的代价不是立刻报错，
 而是**某天悄悄少起一个服务**，然后在离根因很远的地方（这里是编辑器死循环）表现出来。
+
+### C-14 ⭐⭐ `pnpm install` 报成功但 `node_modules` 是空的（本环境建不了符号链接）
+
+**症状**：`bash stack.sh start` 之后四个前端全部秒退，浏览器「拒绝连接」。日志里是：
+
+```
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'pathe'
+    imported from .../apps/web/node_modules/@react-router/dev/dist/routes-*.js
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@react-pdf/primitives'
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@plane/logger'
+    imported from .../apps/live/dist/start.mjs
+```
+
+而 `pnpm install` 的输出是 **`added 1183, done`、exit 0、零 WARN**。
+
+**根因有两层，第二层才是真正致命的：**
+
+1. **搬家把链接拍平了。** 2026-10-10 仓库从
+   `C:\Users\cao\Desktop\asl-work\plane_pocket` 搬到 `D:\ai-work\plane_pocket`
+   （提交 `1c763a5` 只改了 10 行路径字符串，**不是脚本的错**）。跨盘复制把 pnpm 的
+   junction 解引用成了实体目录：旧树 `apps/web/node_modules` 是 **64 个 Junction / 0 个实体目录**，
+   新树变成 **0 / 64**。实体副本让 Node 的 realpath 停在副本上，再也走不到 `.pnpm` 里的兄弟依赖。
+2. **这个环境里 pnpm 建不出符号链接。** 即使删干净重装（`.pnpm` 1184 个包齐全、
+   `added 1183, done`、exit 0、零警告），`apps/*/node_modules` 里**只有空的作用域目录**，
+   `.pnpm/*/node_modules/` 也没有兄弟链接。
+
+**30 秒最小复现**（只依赖 `pathe@2.0.3` 的空项目）：
+
+| `node-linker` | 结果 |
+|---|---|
+| `isolated`（上游默认） | `node_modules/pathe` **不存在**，但 pnpm 打印 `+ pathe 2.0.3` |
+| `hoisted` | `node_modules/pathe/package.json` **存在** ✅ |
+
+**排除项**（都验证过，不是它们）：
+- D: 是 NTFS，手工 `New-Item -ItemType Junction` 与 `fs.symlinkSync(...,'junction')` **都成功**
+- `NODE_OPTIONS` 注入的 `node-language-shim.cjs` 里没有 symlink 相关代码；`env -u NODE_OPTIONS` 结果相同
+- lockfile 的 `importers` 完整包含 19 个 workspace 项目
+
+**修法**：改用 hoisted 布局（只写实体目录，不依赖链接）。`plane-preview/.npmrc`：
+
+```ini
+node-linker = hoisted
+```
+
+hoisted 之后还有两件事 pnpm 仍然要靠链接，必须手工补 junction（本环境可建 junction）：
+
+```powershell
+# 1) 工作区包 -> 根 node_modules/<name>
+#    读 packages/*/package.json 的 name，建 Junction 到 packages/<dir>
+# 2) 各 app 的 .bin -> 根 .bin（start-stack.sh 用的是 ./node_modules/.bin/react-router）
+# 3) 各 app 的 @react-router/dev -> 根同名包（.bin 的 shim 用相对路径 ../@react-router/dev/bin.cjs）
+```
+
+**验证**（期望：8000/3000/3001 = 200，3002 = 302，3100 = 404）：
+
+```bash
+for u in http://127.0.0.1:8000/api/instances/ http://127.0.0.1:3000/ \
+         http://127.0.0.1:3001/god-mode/ http://127.0.0.1:3002/ http://127.0.0.1:3100/live/; do
+  printf '%-45s ' "$u"; curl -s --noproxy '*' -o /dev/null -w '%{http_code}\n' --max-time 20 "$u"
+done
+```
+
+**自查"链接图是否完好"**（0 就是坏了）：
+
+```powershell
+(Get-ChildItem 'D:\ai-work\plane_pocket\plane-preview\apps\web\node_modules' -Force |
+  Where-Object { $_.LinkType }).Count
+```
+
+**配套的环境坑**：这次安装中途还撞上 **C: 盘 0 字节可用**（`ENOSPC`），而 C: 满会让安全删除代理
+写不了审批记录 → **删不动文件**的死锁。绕法是 `[System.IO.Directory]::Delete()`。
+C: 的构成：Users 124.9 GB / Windows 25.8 / Program Files 37.7 / 回收站 9.07 / ProgramData 7.5。
+重装留下的 `node_modules.broken-*` 千万别留在项目树里，清法见 **C-15**。
+
+> 教训：**Go 侧全绿不能证明前端可用**。`go test` / `release-check` 完全不经过 `node_modules`，
+> 所以这个洞从 10-10 搬家一直潜伏到 10-17 才被发现。
+
+---
+
+### C-15 ⭐⭐ 残留的 `node_modules.broken-*` 目录会把 Vite 监听器拖到 OOM
+
+**症状**：服务**先好后坏**。起栈时 3000 正常，几十分钟后浏览器「拒绝连接」，`web-dev.log` 末尾是：
+
+```
+[vite] changed tsconfig file detected:
+  .../apps/web/node_modules.broken-20261017135138/@plane/editor/node_modules.broken-.../@plane/blocks/...
+  - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+...（同一条消息刷几百行）...
+
+FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
+```
+
+**根因**：修 C-14 时反复重装，留下一堆 `node_modules.broken-<ts>` / `.dead-*` / `.partial-*` 目录。
+Vite 默认只忽略 `**/node_modules/**`，**不匹配 `node_modules.broken-*`**，于是 chokidar 进去爬。
+这些目录里是 pnpm 的嵌套副本（`@plane/editor/node_modules.broken-*/@plane/blocks/node_modules.broken-*/...`），
+每个都带一份 `tsconfig.json`；`vite-tsconfig-paths` 每读到一个就「清缓存 + 全量重载」，
+最终把 4 GB 堆撑爆。**不是代码问题，是垃圾目录问题。**
+
+**修法（两件事都要做）**：
+
+1. 清掉残留目录（见下方命令）。它们必须在项目树里消失，改名成 `.bak` 没用。
+2. 加护栏，防止下次重装再踩：三个 `vite.config.ts` 的 `server` 段都加
+
+```ts
+watch: { ignored: ["**/node_modules.*/**"] },
+```
+
+**清理命令**（路径常超 260 字符，且 sharp 的 `libvips-42.dll` 容易被杀软锁住，
+`Remove-Item` / `Directory.Delete` 会报「访问被拒绝」；robocopy 空目录镜像最稳）：
+
+```powershell
+$root='D:\ai-work\plane_pocket\plane-preview'
+$empty='D:\ai-work\plane_pocket\.purge-empty'
+New-Item -ItemType Directory -Path $empty -Force | Out-Null
+$dirs = @(Get-ChildItem $root -Directory -Force | Where-Object { $_.Name -like 'node_modules.*' })
+foreach ($sub in @('apps','packages')) {
+  Get-ChildItem (Join-Path $root $sub) -Directory | ForEach-Object {
+    $dirs += Get-ChildItem $_.FullName -Directory -Force | Where-Object { $_.Name -like 'node_modules.*' }
+  }
+}
+foreach ($d in $dirs) {
+  robocopy $empty $d.FullName /MIR /R:1 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+  try { [System.IO.Directory]::Delete("\\?\$($d.FullName)", $true) } catch {}
+}
+```
+
+个别删不掉的（`libvips-42.dll` 被占）：直接 `Move-Item` 移到项目外的
+`D:\ai-work\.trash-<日期>\`，**只要不在项目树里就不会被监听**，之后再删。
+
+**自查**（期望 0；非 0 就还有雷）：
+
+```powershell
+$root='D:\ai-work\plane_pocket\plane-preview'
+@(Get-ChildItem $root -Directory -Force | Where-Object { $_.Name -like 'node_modules.*' }).Count
+```
+
+> 教训：**「先好后坏」优先怀疑工作目录里的垃圾，而不是代码**。这次 3000 端口是在
+> 稳定运行一小时后才崩的，期间没人改过一行代码——变的只有我留下的临时目录。
+
+---
+
+### C-16 ⭐⭐ 代码全在 D:，C: 却一直在变小（缓存/日志/安装残留都在用户目录）
+
+**症状**：仓库、`node_modules`、`.fe-run` 数据全在 `D:\ai-work\plane_pocket`，
+但 C: 可用空间持续下降。2026-10-17 实测：18:20 有 12.1 GB，22:04 只剩 8.46 GB。
+
+**审计出来的四个来源（没有一个在项目目录里）**：
+
+| 来源 | 实测大小 | 是否持续增长 |
+|---|---|---|
+| `%TEMP%\<随机名>`（VS / VS Code 安装器下载的组件包） | 3.07 GB | 一次性，装完不自动删 |
+| `%USERPROFILE%\.workbuddy-ai\logs`（沙箱审计日志，按天分目录） | 4.8 GB | **是，约 1 GB/天** |
+| `%USERPROFILE%\.workbuddy-ai\workspace\sessions`（会话快照库） | 2.95 GB | 不超，GC 上限 3000 MB |
+| `%LOCALAPPDATA%\pnpm\store\v11` + `package-manager-store` | 789 MB + 612 MB | 与项目无关的孤儿缓存 |
+
+**关于 pnpm store 的两个反直觉点（都实测过）**：
+
+1. **Windows 下 pnpm 的默认 store 在项目所在盘，不是 C:。**
+   本项目的 store 是 `D:\.pnpm-store\v11`（2.9 GB / 64,406 个文件），一开始就在 D:。
+   `%LOCALAPPDATA%\pnpm\store` 里那 789 MB 是**别的上下文**留下的（cwd 在 C: 时跑过 pnpm，
+   比如装 pnpm 自身），对本项目是孤儿。所以「把 store 从 C: 搬到 D:」是伪需求，
+   真正要做的是**删掉 C: 的孤儿目录**。
+2. **pnpm 11 的设置在 `pnpm-workspace.yaml`（camelCase），`.npmrc` 里的 `store-dir` 会被静默忽略。**
+   验证方式：加完 `.npmrc` 的 `store-dir` 后，`pnpm config list` 里**根本没有** store 条目，
+   `pnpm store path` 仍返回默认值。换成 `pnpm-workspace.yaml` 的 `storeDir` 才生效。
+
+**修法**（`plane-preview/pnpm-workspace.yaml` 顶层加一行，把位置钉死）：
+
+```yaml
+storeDir: "D:/.pnpm-store"
+```
+
+```bash
+# 验证：两处都必须对
+cd /d/ai-work/plane_pocket/plane-preview
+node C:/Users/cao/.workbuddy-ai/binaries/node/workspace/node_modules/pnpm/bin/pnpm.cjs store path   # -> D:\.pnpm-store\v11
+node .../pnpm.cjs config list | grep storeDir                                                       # -> "storeDir": "D:/.pnpm-store"
+```
+
+**清理 C: 上的孤儿 store**（删之前先确认项目自己的 store 在 D:，不要删错）：
+
+```powershell
+# 先确认：这个输出必须是 D: 开头
+cd D:\ai-work\plane_pocket\plane-preview
+node C:\Users\cao\.workbuddy-ai\binaries\node\workspace\node_modules\pnpm\bin\pnpm.cjs store path
+# 再删 C: 的孤儿（保留 package-manager-store / global）
+Remove-Item "$env:LOCALAPPDATA\pnpm\store" -Recurse -Force
+```
+
+> 别急着 `robocopy` 搬 store：本次先花 40 分钟跨盘复制了 6 万个小文件，
+> 后来才发现目标内容早就存在、源目录根本没人用。**先 `pnpm store path` 看清事实再动手。**
+
+**清理日志与安装残留**（都在项目外，属缓存性质）：
+
+```powershell
+# 沙箱日志：只留最近 7 天
+Get-ChildItem "$env:USERPROFILE\.workbuddy-ai\logs\sandbox" -Directory |
+  Where-Object { $_.Name -match '^\d{8}$' -and $_.Name -lt (Get-Date).AddDays(-7).ToString('yyyyMMdd') } |
+  Remove-Item -Recurse -Force
+# 安装器残留：装完就没人用了
+Remove-Item "$env:TEMP\ff5ytblb" -Recurse -Force -ErrorAction SilentlyContinue
+```
+
+**自查**（按大小排序，看谁在长）：
+
+```powershell
+foreach ($p in "$env:LOCALAPPDATA\pnpm","$env:USERPROFILE\.workbuddy-ai\logs","$env:TEMP","$env:LOCALAPPDATA\go-build") {
+  if (Test-Path $p) { "{0,-55} {1,7:N0} MB" -f $p, ((Get-ChildItem $p -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum/1MB) }
+}
+```
+
+> 教训：**"代码在 D:" 不等于"只在 D: 写盘"**。工具链的缓存、日志、快照默认都在
+> `%LOCALAPPDATA%` / `%USERPROFILE%`，要逐个显式改掉才会真正搬到 D:。
+
+---
+
+### C-17 ⭐⭐ 生产构建报 `ENOENT <app>\tailwindcss`（hoisted 安装 + Tailwind v4）
+
+**症状**：开发（`react-router dev`）一切正常，但 `react-router build` 在
+「building ssr environment」阶段失败：
+
+```
+[plugin vite:css] apps/admin/styles/globals.css?transform-only:undefined:NaN
+Error: [postcss] ENOENT: no such file or directory, open 'D:\...\apps\admin\tailwindcss'
+```
+
+注意路径里少了 `node_modules`——它把 `tailwindcss` 当成了**相对路径**。
+
+**影响面**：`web` / `admin` / `space` **三端全挂**，与 `ssr` 开关无关。
+2026-10-18 之前这个坑一直没暴露，因为只跑 dev、没跑过 `build`。
+
+**根因链**：
+
+1. Vite 的 CSS 处理用 `postcss-import` 解析 `@import`，它内部用的是 `resolve` 包。
+2. `resolve` 只认 `package.json` 的 `main` / `style`，**不认 `exports` 字段**。
+3. Tailwind v4 的 `package.json` 只有 `exports`（`"." -> {"style": "./index.css"}`），
+   没有 `main` → `resolve` 失败 → 退回「按相对路径找」→ `apps/<app>/tailwindcss` → ENOENT。
+4. C-14 改成 `node-linker = hoisted` 后，`tailwindcss` 只在**根** `node_modules`，
+   应用目录下没有，进一步保证了这个回退路径必然失败。
+
+**修法**：把共享样式里的裸导入改成显式子路径（一行）。
+
+```css
+/* packages/tailwind-config/index.css */
+@import "tailwindcss/index.css";   /* 原来: @import "tailwindcss"; */
+```
+
+子路径会被当成普通文件解析，绕开 `exports`；内容等价（`style` 字段指向的就是它）。
+
+**验证**：
+
+```bash
+cd plane-preview/apps/admin
+CODEBUDDY_SAFE_DELETE_ENABLED=0 ./node_modules/.bin/react-router build   # 必须 exit 0
+```
+
+> 别用 `pnpm --filter <app> build` 验证：本环境的 pnpm 会先跑一次
+> `pnpm install`，撞上 C-14 的 `ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE`，
+> 报的是安装失败而不是构建失败，容易误判。直接调 `./node_modules/.bin/react-router build`。
+
+> 教训：**dev 能跑 ≠ 能构建**。dev 走 Vite 的按需转换，build 才走完整的
+> postcss 链；换了 node-linker 之后尤其要补一次 `build` 验证。
+
+---
+
+### C-18 ⭐⭐ 自己写 gzip 中间件：四个必须处理的细节
+
+**背景**：`internal/middleware/gzip.go` 让单二进制部署也有压缩（否则前端 bundle
+1.99 MB 原样发出，首屏约 3.5 倍流量）。看起来是「包一层 `gzip.Writer`」，
+实际有四个坑，每一个都会产出**客户端无法解析**的响应。
+
+**① 报错路径上缓冲的 body 会粘在 500 前面**
+
+`tools/router.loadMux` 里是 `ErrorHandler(resp, req, err)`——用的是**原始**
+`resp` 变量，不是 `e.Response`。中间件替换了 `e.Response` 之后，处理器写了一半
+再返回 error 时：缓冲的 200 body 留在我们手里，ErrorHandler 又往原始 writer 写
+JSON 错误 → 客户端收到「半截 JSON + 错误 JSON」。
+所以错误路径必须 `Discard()` 掉缓冲区，把响应完全交给 router。
+
+**② `Content-Length` 必须删**
+
+`http.ServeContent` 会按**原始文件大小**设 `Content-Length`。压缩后长度变了，
+不删的话客户端按旧长度读、或服务端直接报错。同理要删 `Accept-Ranges`
+（字节范围已经映射不到压缩流上），并补 `Vary: Accept-Encoding`。
+
+**③ 不能一刀切**
+
+| 情况 | 为什么必须跳过 |
+|---|---|
+| `Range: bytes=…` | 客户端按偏移取字节，压缩流里没有这些偏移（实测 `206` + 100 B 必须保持 identity） |
+| `text/event-stream` | `/api/realtime` 的 SSE 必须逐条直达；压了以后帧边界被改变，代理也会缓冲 |
+| 已带 `Content-Encoding` | 双重压缩，客户端只解一层 → 乱码 |
+| PNG / WebP / woff2 / mp4 / zip | 已经是压缩格式，再压是负收益（CPU 换 0%） |
+| 1xx / 204 / 304 | 没有 body，包一层只会让状态码错乱 |
+
+**④ 别自己实现 `Written()` / `Status()`**
+
+`tools/router` 的 `getWritten` / `getStatus` 会沿着 `Unwrap() http.ResponseWriter`
+链回落到内层 `*router.ResponseWriter`。包装器只要实现 `Unwrap()`（外加 `Flush()`
+转发给 `http.NewResponseController`），状态就只有一份事实来源；
+自己再记一份 `written` 容易和真实状态不同步，导致 ErrorHandler 误判。
+
+**验证**（不要只看 `Content-Encoding`，要 round-trip）：
+
+```bash
+curl -s -H 'Accept-Encoding: gzip' -o /tmp/x.gz "$B/spaces/"
+gunzip -c /tmp/x.gz | cmp - <(curl -s "$B/spaces/")   # 必须无输出
+```
+
+> 实测收益：`page--3ScAE-D.js` 1,989,435 → 563,150（3.5×），
+> `index.html` 4,284 → 1,713（2.5×），50 B 的 `/api/health` 与 PNG 原样通过。
+> 细节与关闭开关（`PLANE_GZIP=0`）见 [04 §4.4](04-DEPLOYMENT.md)。
+
+---
+
+### C-19 ⭐⭐ 构建单端口前端：`.env.production` 是**不生效**的
+
+**症状**
+
+- 想改前端打包时的 API 地址，老老实实写了 `apps/web/.env.production`，
+  重新 build，浏览器里还在打 `localhost:3001`。
+- 或者：单端口模式下 admin 页面 502/连不上后端，而 web 正常。
+
+**根因**（读 `apps/*/vite.config.ts` 那两行就能看到，但很容易忽略）：
+
+```ts
+dotenv.config({ path: path.resolve(__dirname, ".env") });  // ① 只读 .env
+... define: { "process.env": JSON.stringify(viteEnv) }   // ② 整体替换
+```
+
+1. **它只读 `.env`**。`.env.production`、`.env.local`、`.env.development`
+   一概不碰——`vite build --mode production` 也不会让 dotenv 改看别的文件。
+2. **`process.env` 被整体替换成 `.env` 内容的字面量**，于是 `.env` 里的
+   `localhost:3000/3001/3002` 会被**编进产物**，与运行时无关、改不了。
+3. **dotenv 不覆盖已存在的 process.env 变量**——这是唯一的杠杆：
+   构建前在 shell 里 `export VITE_…`，dotenv 会让路，`define` 拿到新值。
+
+**修法**：不要改 `.env.production`。用 `tests/browser/build-frontends.sh`
+（`BASE_URL` 一处改全部），或自己 export 后逐个构建：
+
+```bash
+cd plane-pocketbase/tests/browser && bash build-frontends.sh   # 官方入口
+# 等价手工版：
+export VITE_API_BASE_URL=http://localhost:8000 VITE_ADMIN_BASE_PATH=/god-mode …
+cd plane-preview/apps/web && ./node_modules/.bin/react-router build
+```
+
+**如何自查**（脚本内置，手工也要做——grep 产物，别 grep 源码）：
+
+```bash
+grep -rl 'localhost:300[012]' apps/web/build/client && echo "还有多端口地址"
+# 必须是空。3000/3001/3002 一旦出现，说明 .env 赢了。
+```
+
+> 附带一条：**单端口下 `admin_base_url` 留空是正确的**。
+> `adminBaseHost()`（`internal/handlers/instance/auth.go`）在没有 env 时返回
+> 相对路径 `/god-mode/`，浏览器对着 8000 解析即中；反而设了多端口的
+> `PLANE_ADMIN_BASE_URL` 才会跳错地方。多端口部署才需要它。
+
+---
+
+### C-20 ⭐⭐⭐ Git Bash 会把 env 里的 `/xxx` 改写成 Windows 路径，毁掉 Vite 的 base
+
+**症状**
+
+- `curl http://localhost:8000/god-mode/` → **200**，`/god-mode/assets/<hash>.js` → **200**
+- 浏览器打开却只有一个转圈的 logo；Network 里出现这种请求：
+
+```
+GET http://localhost:8000/C:/Users/cao/AppData/Local/Programs/WorkBuddyAI/
+    resources/vendor/PortableGit/god-mode/assets/root-XXXX.css   (failed)
+```
+
+- index.html 里每个资源 URL 都长这样，`window.__reactRouterContext.basename`
+  也是 `"/C:/…/PortableGit/god-mode/"`。
+
+**根因**
+
+Git for Windows 的 MSYS 运行时在 **spawn Windows 子进程**时，会把环境变量里
+「长得像 POSIX 路径」的值改写成 Windows 路径（不只是 argv）：
+
+```bash
+$ export VITE_ADMIN_BASE_PATH="/god-mode"
+$ node -e 'console.log(process.env.VITE_ADMIN_BASE_PATH)'
+C:/Users/cao/AppData/Local/Programs/WorkBuddyAI/resources/vendor/PortableGit/god-mode
+```
+
+而 `apps/admin/vite.config.ts` 里 `base: joinUrlPath(process.env.VITE_ADMIN_BASE_PATH, "/")`
+直接吃这个值 → Vite 用它重写 HTML 里**每一个**资源 URL 和 React Router 的 basename。
+`space` 同理（`VITE_SPACE_BASE_PATH`）。`web` 没有 base path，所以幸免——
+**这也解释了为什么只有 admin/space 坏，web 正常**。
+
+**修法**
+
+```bash
+export MSYS_NO_PATHCONV=1          # Git 官方开关，实测有效
+# 或
+export MSYS2_ENV_CONV_EXCL='*'
+```
+
+`tests/browser/build-frontends.sh` 已内置这一行。**注意范围**：从 Git Bash 启动
+任何吃路径型 env 的 Windows 程序都有这个风险，包括后端
+（`ADMIN_BASE_PATH=/god-mode`）。PowerShell / cmd 不受影响。
+
+**如何自查**（curl 探活查不出来，必须看 HTML 或浏览器）
+
+```bash
+grep -c 'C:/' apps/admin/build/client/index.html      # 必须 0
+grep -o '"basename":"[^"]*"' apps/admin/build/client/index.html   # 必须是 /god-mode/
+```
+
+`build-frontends.sh` 现在会在构建后断言：index.html 不含 `C:/` / `PortableGit`，
+且必须出现 `/god-mode/assets/`（admin）或 `/spaces/assets/`（space）前缀。
+
+> **教训**：`200 OK` 只证明文件在磁盘上、路径没写错；**不证明应用能跑**。
+> 这一条是浏览器里才暴露的——三个入口都 curl 200 的时候，admin 和 space 其实是白屏。
+> 验收必须真的打开页面（或用 Playwright）看 DOM，见 `tests/browser/run*.mjs`。
+
+---
+
+### C-21 ⭐⭐ `MSYS_NO_PATHCONV=1` 反过来会**害死** Go 二进制
+
+**症状**：同一台机器上，直接 `bash serve-single.sh` 一切正常；但从某个脚本里调它，
+二进制拒绝启动：
+
+```
+2026/10/24 02:03:13 PLANE_ADMIN_DIR: /d/ai-work/.../apps/admin/build/client
+                     has no index.html (run the frontend build first)
+```
+
+而那个文件明明存在（`ls` 得到 4546 字节）。
+
+**根因**：和 C-20 是同一个开关的**两个方向**。
+
+| | 谁在转换 | 期望的形式 |
+|---|---|---|
+| C-20（Vite `base`） | Git Bash 自动把 `/god-mode` 改写成 `C:/…/PortableGit/god-mode` | **不能**转 → 要 `MSYS_NO_PATHCONV=1` |
+| C-21（`PLANE_*_DIR`） | Git Bash 自动把 `/d/ai-work/...` 改写成 `D:\ai-work\...` | **必须**转，因为 Go 是原生 Windows 程序 |
+
+所以只要调用方（`build-frontends.sh`、`run-chain-single.sh`、`run-all.sh`）
+导出了 `MSYS_NO_PATHCONV=1`，`PLANE_ADMIN_DIR=/d/...` 就会**原样**传给二进制，
+Go 的 `os.Stat` 找不到 `/d/ai-work/...`，于是报"没有 index.html"。
+
+**修法**：`serve-single.sh` 里用 `cygpath -w` 显式转换，不依赖调用方的 MSYS 开关：
+
+```bash
+to_native() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) cygpath -w "$1" 2>/dev/null || printf '%s' "$1" ;;
+    *)                    printf '%s' "$1" ;;
+  esac
+}
+export PLANE_ADMIN_DIR="$(to_native "$ADMIN")"
+```
+
+**判据**：看到 `PLANE_*_DIR: … has no index.html` 但文件确实在，先 `echo $MSYS_NO_PATHCONV`。
 
 ---
 
@@ -1029,13 +1505,25 @@ origin 的 `/god-mode/`，断言**没有**渲染失败视图 + `/api/instances/`
 
 ### D-9 Pages 编辑器会死循环（`apps/live` 不是可选项）
 
+> **2026-10-23 更新：已从根上解决。** 不再需要 `apps/live` 与 Redis —— 纯 Go 中继
+> `internal/live/` 已提供 `/live/collaboration`，编辑器保持 `connected`，fallback 不再触发。
+> 见 `10-REMAINING-WORK.md` §3.3 / §3.4，以及本文件的 **D-11**（中继自身的坑）。
+> 下面保留原始分析，因为它是"为什么必须有 WS 协作端"的完整推导。
+
+> **2026-10-16 决策更新（N-10 暂不实现）**：`apps/live` 决定**暂不部署也不改造**。
+> 所以本条的"修法"由"**运行 live**"改为"**不暴露 Pages 富文本编辑入口**"。
+> ⚠ **死循环本身没有消失**，只是绕开了会触发它的入口；一旦入口对用户可见且 live 不在，本坑照旧复现。
+> 见 `01` D5′、`04` §9 N-10、`10-REMAINING-WORK.md` §3.1。若将来恢复协作编辑，须先撤销该决策。
+
 **症状**：应用无限 PATCH/GET `.../pages/<id>/description/`，渲染进程卡死。
 
 **根因**：编辑器连不上 `apps/live`（Yjs 协作服务）时退回 `usePageFallback`，
 它的 effect 在每次 `page.description_html` 变化时都重跑，
 于是"断线后保存"永远不收敛。
 
-**修法**：**运行 `apps/live`**（需要 Redis）。
+**修法（当前，2026-10-16 起）**：**不暴露 Pages 富文本编辑入口**，从而不进入 fallback。
+
+**修法（若将来启用 live）**：**运行 `apps/live`**（需要 Redis）。
 live 服务在，编辑器保持 `connected`，就不会走 fallback。
 
 **⚠ 第二个独立原因：live 自己的 CORS 白名单。**
@@ -1090,6 +1578,60 @@ done
 | `project-deploy-boards/` | 返回**数组**，前端当**对象**读 |
 | 发布时 `view_props` 被丢弃 | Space 列表整个空掉 |
 | Space 的 issues 接口 | 返回扁平数组，而前端要的是**按 state 分组** |
+
+---
+
+### D-11 Go 中继（`internal/live`）的六个坑
+
+**① 探针写 `Y.Text("default")`，编辑器读 `Y.XmlFragment("default")`**
+
+两个类型**同名但互不兼容**，探针写进去的内容编辑器完全看不见，页面显示空文档，
+日志解码后是 `keys: ['default'] → AbstractType`。极易误判成"中继坏了"。
+测试时要么用真实编辑器写第一条 update，要么显式 `doc.getXmlFragment("default")`。
+
+**② 回放不触发 `onStateChange`**
+
+中继回放是远端 yjs update，不是本地编辑，`editor.onStateChange` 不响。
+所以"只打开不编辑"的页面不会回写 `description_html` —— 若正文只在日志里，
+发布到 Space 就是空白页。修法：`use-collab-description-sync.ts` 在 attach 后
+做一次 settle 检查（见 `10-REMAINING-WORK.md` §3.4）。
+
+**③ `page.description_html` 的空串会被折叠成 `undefined`**
+
+`store/pages/base-page.ts:127` 是 `page?.description_html || undefined`。
+于是"空页面"与"尚未 hydrate"在类型上无法区分，写回逻辑不能用它当基线判空，
+只能用"文档里有文字就写"兜底。
+
+**④ 同一资源的两条写路径容易漏字段**
+
+`PATCH …/pages/{id}/`（`page.Update`）会派生 `description_stripped`，
+但编辑器实际走的 `PATCH …/pages/{id}/description/`（`page.DescriptionPatch`）**不会**。
+结果页面正文永远搜不到（sticky 搜索过滤 `description_stripped`）。
+**新增/改动任何"写描述"的路径时，都要同步检查 `description_stripped`。**
+
+**⑤ `description_binary` 是 file 字段，不能直接塞 base64**
+
+`pages.description_binary` 在 PocketBase 里是 `FileField`：**列里存的是文件名**，
+字节在 `<data>/storage/<collection>/<record>/` 下。前端发来的是 base64 的 yjs update，
+直接 `page.Set("description_binary", base64)` 会把它当成文件名，`Save` 时校验失败
+（或者存进去一个不存在的文件名），于是 `GET …/pages/{id}/description/` 永远返回空，
+编辑器的离线兜底也永远拿不到文档。
+必须走 `filesystem.NewFileFromBytes` + `Set`（见 `page.setDescriptionBinary`），
+读取走 `app.NewFilesystem()` + `record.BaseFilesPath()`，**不要**自己拼
+`DataDir()/storage/...`（record 的 PK 与目录名不总是同一个东西）。
+同一个坑在 `Create` / `Update` / `DescriptionPatch` 三处都要按这个来。
+
+**⑥ compaction 的快照请求必须与广播在同一把锁下**
+
+中继不会合并 CRDT，唯一的瘦身方式是「向在线客户端要一次全量快照，用它替换整个日志」。
+快照的正确性依赖一条隐含前提：**客户端收到请求时，已经应用了我们记录的每一条 update**。
+如果 `record()` 先解锁、再去广播、再发 `SyncStep1`，两个并发编辑就可能让 A 的快照请求
+抢在 B 那条 update 的广播之前进入队列 —— 快照里缺 B，而 B 的下标又小于
+`compactIdx`，compaction 会把它**静默丢掉**。
+所以 `record()` 里的「写盘 + 广播 + 判定/发快照请求」必须在 `r.mu` 的同一临界区内完成
+（`trySend` 是非阻塞的缓冲队列，持锁发送是安全的）。同理，`applySnapshot` 也要持锁替换
+`updates` 并重写文件，否则与 `append` 交错会写坏日志。
+
 | Triage 状态漏进项目状态列表 | 数据结构对了但内容多了 |
 | Space 的 issue 列表 | 按升序返回，应降序 |
 
@@ -1152,6 +1694,52 @@ return Promise.race([
 
 ---
 
+### E-6 ⭐⭐ `run*.mjs` 的**退出码 0 不代表通过**
+
+**症状**：链路跑完打印「ALL RUNS EXIT 0」，看着全绿；实际 run1 的 A1 根本没连上 admin
+（`ERR_CONNECTION_REFUSED`），A3/A4 与 run2 的 B2–B4 全是级联失败，run3 用的是**上一次留下的**
+项目 id，所以后面几轮"照样通过"。整条链是**假绿**。
+
+**根因**：每个 `run*.mjs` 的 `step()` 捕获异常后只写一行 `  !! <step> FAILED: …` 然后继续，
+进程最终正常退出。退出码反映的是"脚本没崩"，不是"步骤通过"。
+
+**判据**（两条都要看）：
+
+```bash
+grep -c '^===== ' tests/logs/run1-bootstrap.mjs.log   # 计划跑的步骤数
+grep -c '^  !! '  tests/logs/run1-bootstrap.mjs.log   # 实际失败数，必须为 0
+```
+
+`run-chain-single.sh` 已内置这个判定（失败步骤 > 0 即整体 FAIL），
+`run-all.sh` 目前**只**看退出码。
+
+**附带的第二个坑**：`lib.mjs` 里 admin / space 的地址分别是 `PLANE_ADMIN_URL`、`PLANE_SPACE_URL`，
+默认值是 dev 栈的 `:3001` / `:3002`。单端口模式下只设 `PLANE_WEB_URL` 会让 run1 去打
+`http://localhost:3001/god-mode/` → 连接被拒。三个变量都要指向同一个 `:8000`。
+
+---
+
+### E-7 ⭐ 在 Bash 调用里用 `&` 起的服务，**它写的文件不会落到真实磁盘**
+
+**症状**：`run-chain-single.sh --fresh` 逻辑上全过（workspace / project / page 都建出来了），
+跑完去看 `.fe-run`——空的。甚至"运行中"去看也是空的。
+
+**根因**：agent 沙箱对"工具调用内 `&` 后台化的子进程"给了隔离的文件视图，调用结束即丢弃。
+（这与 `02-GETTING-STARTED` 里"沙箱内 `nohup` 的服务会被回收"是同一条限制的另一面：
+不只进程被回收，**写入也不落盘**。）
+
+**后果与对策**：
+
+- 这类跑法**可以**用来验证行为（接口返回、页面渲染、链路是否通过），
+  **不能**用来留下数据。要看结果就把断言写进日志，别指望事后查库。
+- 需要**真落盘**的服务，必须用工具层的后台任务（`run_in_background`），
+  它由 harness 管理，写入是真实的。
+- 因此 `run-chain-single.sh --fresh` **不再 `mv .fe-run`**，改用
+  `PLANE_DATA_DIR=.fe-run-chain-<时间戳>`：跑完临时目录里可能是空的，
+  但**用户的实例一根头发都不动**。这一点是 `--full-single` 敢放进发布门禁的前提。
+
+---
+
 ## F 类 · 通用工程
 
 ### F-1 编译通过 ≠ 行为正确
@@ -1209,8 +1797,33 @@ mv X "X.bak-$(date +%s)" && mkdir -p X
 | `services ready after 120s` 但端口全空 | **C-11** |
 | **`|| echo 000` 把死服务判成存活（`code="000000"`）** | **C-12** |
 | **`WARNING: NODE=... is not executable; apps/live will fail to start`** | **C-13** |
+| **四个前端全部 `ERR_MODULE_NOT_FOUND`（`pathe` / `@react-pdf/primitives` / `@plane/logger`）** | **C-14** |
+| **`pnpm install` 报 `added N, done` 但 `node_modules` 里是空的** | **C-14** |
+| 浏览器「127.0.0.1 拒绝连接」而端口脚本说服务已启动 | **C-14 / C-13** |
+| `pnpm install` 中途 `ENOSPC`，C: 盘 0 可用 | **C-14（配套环境坑）** |
+| **服务先好后坏：`changed tsconfig file detected: .../node_modules.broken-*` 刷屏后 `FATAL ERROR: Reached heap limit`** | **C-15** |
+| **web 跑一小时后自己挂掉，期间没人改代码** | **C-15** |
+| 删 `node_modules.broken-*` 报「对路径 libvips-42.dll 的访问被拒绝」 | **C-15**（robocopy 空镜像 / 移出项目树） |
+| **`react-router build` 报 `ENOENT ...\apps\<app>\tailwindcss`（dev 正常）** | **C-17**（`@import "tailwindcss/index.css"`） |
+| **改了 `.env.production` 重新 build，前端还在打旧地址 / 多端口地址** | **C-19**（只读 `.env`；用 `build-frontends.sh` 预先 export） |
+| **单端口部署下 admin 重定向跳错域名** | **C-19**（`admin_base_url` 留空才对） |
+| **`/god-mode/`、`/spaces/` 页面只显示转圈 logo；请求里出现 `C:/…/PortableGit/...`** | **C-20**（Git Bash 改写 env 路径；`MSYS_NO_PATHCONV=1`） |
+| **curl 探活全 200，但浏览器白屏** | **C-20**（200 只证明文件在，必须开浏览器验 DOM） |
+| **`PLANE_ADMIN_DIR: … has no index.html`，但文件确实在** | **C-21**（`MSYS_NO_PATHCONV=1` 让路径没被转成 `D://…`） |
+| **链路跑完打印「exit 0」却是假绿** | **E-6**（`run*.mjs` 失败只写 `!!`，退出码仍是 0） |
+| **门禁跑完 `.fe-run` 是空的 / 后台服务写的文件找不到** | **E-7**（工具调用内 `&` 起的进程写入不落盘） |
+| **单端口下 `/`、`/god-mode/`、`/spaces/` 返回 404 JSON，`/api/*` 却正常** | 三个 `PLANE_*_DIR` 没设 —— 静态托管是 opt-in，用 `tests/browser/serve-single.sh` 起就不会漏 |
+| **单端口部署（不跑 live）一进 Pages 编辑器就卡死** | **D-9**（2026-10-23 起由 `internal/live` 根治） |
+| **编辑器能开、能敲，但页面正文是空的（探针自测时）** | **D-11 ①**（`Y.Text` vs `Y.XmlFragment` 同名冲突，清脏日志重测） |
+| **页面正文搜不到 / Space 发布后是空白** | **D-11 ③④**（`description_stripped` 未派生、`description_html` 空串被折叠成 undefined） |
+| **加了 gzip 后：接口 500 响应前半截是 200 body / 前端 JSON.parse 失败** | **C-18**（错误路径要 `Discard()` 缓冲区） |
+| **压缩后客户端卡住或只读到原文件长度** | **C-18**（必须删 `Content-Length` / `Accept-Ranges`） |
+| **`/api/realtime` 不推事件了 / 视频 Range 播放坏了** | **C-18**（跳过 SSE 与 `Range`） |
+| **代码全在 D:，C: 可用空间却一直在降** | **C-16**（pnpm store / 日志 / 安装器残留都在用户目录） |
+| `%TEMP%` 里出现 3 GB 的随机名目录 | **C-16**（VS/VS Code 安装器残留，装完可删） |
+| `.workbuddy-ai\logs` 一天涨 1 GB | **C-16**（沙箱审计日志，按天分目录，不自动清理） |
 | **起栈等满 90 轮最后 TIMED OUT，只有 live 起不来** | **C-13** |
-| **Pages 编辑器无限循环（先确认 live 到底起没起）** | **C-13 / D-9** |
+| **Pages 编辑器无限循环（先确认 live 到底起没起）** | **C-13 / D-9**；N-10 暂不实现后应改为**不暴露编辑入口** |
 | **关掉终端后服务还在（端口没释放）** | **C-11 / 用 `stop-stack.sh`** |
 | 忘了怎么起 / 停 / 重启 / 看状态 | 用 `stack.sh`，见 [02 §5.2](02-GETTING-STARTED.md) |
 | 想清空数据库重来 | `bash stack.sh reset`，见 [02 §5.2.1](02-GETTING-STARTED.md) |

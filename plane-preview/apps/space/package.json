@@ -7,8 +7,8 @@
   "scripts": {
     "dev": "react-router dev --port 3002",
     "build": "react-router build",
-    "preview": "react-router build && PORT=3002 react-router-serve ./build/server/index.js",
-    "start": "PORT=3002 react-router-serve ./build/server/index.js",
+    "preview": "react-router build && serve -s build/client -l 3002",
+    "start": "serve -s build/client -l 3002",
     "clean": "rm -rf .turbo && rm -rf .next && rm -rf .react-router && rm -rf node_modules && rm -rf dist && rm -rf build",
     "check:lint": "oxlint --max-warnings=676 .",
     "check:types": "react-router typegen && tsc --noEmit",

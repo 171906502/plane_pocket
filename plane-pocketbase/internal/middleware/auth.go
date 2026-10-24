@@ -125,38 +125,60 @@ func userFromCookie(app core.App, e *core.RequestEvent, cookieName string) *core
 	return record
 }
 
+// cookieSameSite resolves the SameSite attribute for all auth cookies from
+// `PLANE_COOKIE_SAMESITE`: `lax` (default), `strict`, or `none` for cross-site
+// deployments (`app.foo.com` + `api.bar.com`). The second return value forces
+// `Secure`: browsers reject `SameSite=None` cookies without it, so selecting
+// none implies HTTPS unconditionally — the cookie would not survive plain
+// HTTP anyway.
+func cookieSameSite() (http.SameSite, bool) {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("PLANE_COOKIE_SAMESITE"))) {
+	case "none":
+		return http.SameSiteNoneMode, true
+	case "strict":
+		return http.SameSiteStrictMode, false
+	default:
+		return http.SameSiteLaxMode, false
+	}
+}
+
 // SetSessionCookie issues the session cookie for a user.
 //
 // Plane's cookie is HttpOnly, so JavaScript never reads it; the frontends rely
 // on the browser sending it automatically. SameSite=Lax keeps the cookie on
-// top-level form POSTs (sign-in) while blocking cross-site XHR.
+// top-level form POSTs (sign-in) while blocking cross-site XHR; set
+// PLANE_COOKIE_SAMESITE=none for cross-site deployments (forces Secure).
 func SetSessionCookie(e *core.RequestEvent, app core.App, user *core.Record, cookieName string) error {
 	token, err := user.NewAuthToken()
 	if err != nil {
 		return err
 	}
+	sameSite, forceSecure := cookieSameSite()
 	e.SetCookie(&http.Cookie{
 		Name:     cookieName,
 		Value:    token,
 		Path:     "/",
 		MaxAge:   SessionCookieAge,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   isSecureRequest(e),
+		SameSite: sameSite,
+		Secure:   forceSecure || isSecureRequest(e),
 	})
 	return nil
 }
 
-// ClearSessionCookie expires the session cookie on sign-out.
+// ClearSessionCookie expires the session cookie on sign-out. The clearing
+// cookie must repeat the SameSite/Secure attributes of the one being replaced,
+// so it resolves them the same way.
 func ClearSessionCookie(e *core.RequestEvent, cookieName string) {
+	sameSite, forceSecure := cookieSameSite()
 	e.SetCookie(&http.Cookie{
 		Name:     cookieName,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   isSecureRequest(e),
+		SameSite: sameSite,
+		Secure:   forceSecure || isSecureRequest(e),
 	})
 }
 
@@ -173,14 +195,15 @@ func NewCSRFToken() string {
 // obtain the token from GET /auth/get-csrf-token/ rather than reading the
 // cookie, but the cookie is what we validate against (double-submit).
 func SetCSRFCookie(e *core.RequestEvent, token string) {
+	sameSite, forceSecure := cookieSameSite()
 	e.SetCookie(&http.Cookie{
 		Name:     CSRFCookieName,
 		Value:    token,
 		Path:     "/",
 		MaxAge:   SessionCookieAge,
 		HttpOnly: false,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   isSecureRequest(e),
+		SameSite: sameSite,
+		Secure:   forceSecure || isSecureRequest(e),
 	})
 }
 

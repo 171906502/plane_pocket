@@ -41,7 +41,7 @@ go build -o .fe.exe .
 go test ./internal/router/ -run TestRoutePatternsAreAnchored
 ./.fe.exe migrate up --dir=./.tmp-verify
 
-# 4. 起全套服务（后端 8000 / web 3000 / admin 3001 / space 3002 / live 3100）
+# 4. 起全套服务（后端 8000 / web 3000 / admin 3001 / space 3002；live 3100 暂不部署，见 N-10）
 cd tests/browser && bash stack.sh start
 
 # 5. 看状态 / 验证
@@ -58,7 +58,7 @@ bash stack.sh stop
 `start-stack.sh` / `stop-stack.sh` / `reset-data.sh` 里：
 
 ```bash
-bash stack.sh start   [backend|web|admin|space|live ...]   # 不写服务名 = 全部
+bash stack.sh start   [backend|web|admin|space|live ...]   # 不写服务名 = 全部（live 属 N-10，暂不实现）
 bash stack.sh stop    [服务...]
 bash stack.sh restart [服务...]        # 先停后起；停失败就不起，避免复用死端口
 bash stack.sh status                   # 只读探测，UP / DEAD / down
@@ -131,14 +131,18 @@ plane_pocket/
 | | |
 |---|---|
 | 端到端主流程 | ✅ 已在真实浏览器中从空库跑通全链路 |
-| 已注册路由 | 258 个模式 |
-| 未覆盖接口 | **73 个**（约 20 个按方案剔除 / 约 30 个整模块未做 / 约 24 个边角操作） |
-| 已修缺陷 | 22 个 |
+| 已注册路由 | 339 个模式 |
+| 静态审计未匹配 | **26 种路径形状**：14 项方案内排除、12 项不可达的 `epics` 分支误报；不等于 26 个真实缺口，见 [`docs/08-IMPLEMENTATION-PLAN.md`](docs/08-IMPLEMENTATION-PLAN.md) §11 |
+| 方法级覆盖 | ✅ 已全域盘点并清零（2026-10-10）：前端 368 个 (方法, 路径形状) 调用，METHOD-MISSING **0**；剩余 UNSERVED 均为排除项 / `epics` 幽灵 / 三元模板误报 |
+| 模块行为覆盖 | ✅ Cycle / View / Intake 复核完成（2026-10-11）：多值过滤、`?filters=<JSON 表达式树>` 富过滤、收件箱过滤条与排序均已补齐并配内容断言测试；已知降级见 [`docs/07-STATE-AND-ROADMAP.md`](docs/07-STATE-AND-ROADMAP.md) §3.2 |
+| 已修缺陷 | 25 项已索引（完整流程报告叙述其中 21 项） |
 | 前端代码改动 | **0 行** |
 | 生产就绪 | ⚠️ **未就绪**，见 [`docs/04-DEPLOYMENT.md`](docs/04-DEPLOYMENT.md) §9 |
 
 自查缺口（纯静态，不用起服务）：
 
 ```bash
-python tests/browser/audit-endpoints.py
+python tests/browser/audit-endpoints.py   # 路径级
+python tests/browser/audit-methods.py     # 方法级（覆盖 #23/#24 类"路径在、方法缺"缺陷）
+bash tests/release-check.sh               # 发布前一键验收：build/vet/测试/迁移/审计基线比对
 ```

@@ -75,7 +75,7 @@ func (h *Handler) WorkspaceList(e *core.RequestEvent) error {
 	}
 	params := dbx.Params{"workspace": scope.Workspace.Id}
 	filter := "workspace = {:workspace} && deleted_at = '' && archived_at = '' && " +
-		orIDFilter("project", projectIDs, params)
+		orIDFilter("project", "p", projectIDs, params)
 	modules, err := h.App.FindRecordsByFilter("modules", filter, "-created_at", 0, 0, params)
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ func (h *Handler) Create(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 
@@ -170,7 +170,7 @@ func (h *Handler) Detail(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	record, err := h.findModule(scope, e.Request.PathValue("pk"))
@@ -189,7 +189,7 @@ func (h *Handler) Update(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	record, err := h.findModuleIncludingArchived(scope, e.Request.PathValue("pk"))
@@ -279,7 +279,7 @@ func (h *Handler) Delete(e *core.RequestEvent) error {
 	if record == nil {
 		return e.JSON(http.StatusNotFound, map[string]any{"error": "The required object does not exist."})
 	}
-	if !middleware.IsCreator(e, record) && scope.ProjectRole < middleware.RoleAdmin {
+	if !middleware.IsCreator(e, record) && !middleware.ProjectRoleAtLeast(e, middleware.RoleAdmin) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	record.Set("deleted_at", serializers.Now())
@@ -749,15 +749,18 @@ func (h *Handler) memberProjectIDs(userID, workspaceID string) []string {
 	return ids
 }
 
-// orIDFilter builds `(col = {:k0} || col = {:k1} …)` and registers the params.
-func orIDFilter(column string, ids []string, params dbx.Params) string {
+// orIDFilter builds `(col = {:<prefix>0} || col = {:<prefix>1} …)` and
+// registers the params. An empty list yields an always-false predicate. The
+// prefix keeps multiple uses of the helper in one query from colliding on
+// param names (named params collapse to their last value).
+func orIDFilter(column, prefix string, ids []string, params dbx.Params) string {
 	if len(ids) == 0 {
-		params["none"] = ""
-		return column + " = {:none}"
+		params[prefix+"none"] = ""
+		return column + " = {:" + prefix + "none}"
 	}
 	parts := make([]string, 0, len(ids))
 	for i, id := range ids {
-		key := "f" + strconv.Itoa(i)
+		key := prefix + strconv.Itoa(i)
 		parts = append(parts, column+" = {:"+key+"}")
 		params[key] = id
 	}

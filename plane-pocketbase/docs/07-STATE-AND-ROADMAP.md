@@ -3,43 +3,25 @@
 > 这份文档回答三个问题：**已经做完什么 / 还没做什么 / 下一步该做什么。**
 >
 > 数字会随迭代变化。**每次批量补完接口后请更新本文件**，
-> 并重跑 `python tests/browser/audit-endpoints.py` 获取最新基线。
+> 并重跑 `python tests/browser/audit-endpoints.py` 与
+> `python tests/browser/audit-methods.py` 获取最新基线。
 
 ---
 
-## 1. 当前基线（截至 2026-10-04）
+## 1. 当前基线（截至 2026-10-15）
 
 | 指标 | 数值 | 怎么来的 |
 |---|---|---|
-| 仓库受控文件 | 6735 | `git ls-files \| wc -l` |
-| 后端 Go 代码 | 112 个文件 / 28660 行 | `internal/` + `pb_migrations/` |
-| **已注册路由** | **258** 个模式 | `audit-endpoints.py` |
-| 路由（按方法） | GET 206 · POST 97 · DELETE 70 · PATCH 62 · PUT 10 | 静态计数 |
+| 仓库受控文件 | 6773 | `git ls-files \| wc -l` |
+| 后端 Go 代码 | 133 个文件 / 36933 行 | `internal/` + `pb_migrations/` |
+| **已注册路由** | **339** 个模式 | `tests/browser/audit-endpoints.py` |
 | Plane collection 数 | 79 个 | `pb_migrations/` |
-| 数据库迁移 | 12 个（按 wave 组织） | `pb_migrations/17590000*.go` |
-| 前端调用形状 | 150 个 | `audit-endpoints.py` |
-| **未覆盖接口** | **73** 个 | `audit-endpoints.py` |
-| 已修后端缺陷 | 21 个 | `tests/WORKFLOW_TEST_REPORT.md` |
+| 数据库迁移 | 13 个 | `pb_migrations/*.go` |
+| 前端调用形状 | 150 个 | `tests/browser/audit-endpoints.py` |
+| 静态审计未匹配 | **26** 种路径形状：**15** 项方案内排除 + **10** 项不可达的 `epics` 分支 + **1** 项三元模板误报；真实缺口 **0** | `tests/browser/audit-endpoints.py`（2026-10-15 实测 339 注册 / 150 形状 / 26 UNSERVED）；逐条归类见 `docs/10-REMAINING-WORK.md` §T-4 |
+| 已修缺陷 | 25 项已索引；全流程测试报告叙述其中 21 项 | 本文件 §4 / `tests/WORKFLOW_TEST_REPORT.md` |
+| HTTP 方法级覆盖 | 已盘点并**清零**（2026-10-15 复测）：注册 **571** 个 (方法, 模式) 对；前端 368 个 (方法, 路径形状) 调用（served **293**）；METHOD-MISSING **0**；剩余 **49** UNSERVED 均为方案内排除（webhooks/integrations/importers/AI/assets）、`epics` 幽灵分支或三元模板误报 | `tests/browser/audit-methods.py`；分类见 §3.3 注 |
 | 前端代码改动 | **0 行** | 核心承诺 |
-
-### 路由分布（按域）
-
-| 域 | 路由数 | 文件 |
-|---|---|---|
-| publicapi（`/api/v1/` 那套） | 127 | `router/publicapi.go` |
-| admin（实例管理） | 49 | `router/admin.go` |
-| view（保存视图） | 36 | `router/view.go` |
-| asset（附件/上传） | 31 | `router/asset.go` |
-| module | 30 | `router/module.go` |
-| intake / cycle | 27 / 27 | `router/intake.go` / `router/cycle.go` |
-| project | 19 | `router/project.go` |
-| search / page | 18 / 18 | `router/search.go` / `router/page.go` |
-| workspace | 17 | `router/workspace.go` |
-| users | 16 | `router/users.go` |
-| notification | 12 | `router/notification.go` |
-| auth | 9 | `router/auth.go` |
-| issue | 6 | `router/issue.go` |
-| meta（health/timezones/unsplash） | 3 | `router/router.go` |
 
 ---
 
@@ -49,10 +31,10 @@
 
 | 项 | 状态 |
 |---|---|
-| Git 仓库（三棵树合一） | ✅ `main` @ `ae4b931` |
+| Git 仓库（三棵树合一） | ✅ `main` @ `1c763a5`（当前基线） |
 | 根 `.gitignore` / `.gitattributes` | ✅ 含 `-text` 保护与 `go:embed` 保护 |
 | PocketBase 当库集成 | ✅ `go.mod` `replace` 本地依赖 |
-| 79 个 collection 的定义 | ✅ 12 个迁移，分 wave 组织 |
+| 79 个 collection 的定义 | ✅ 13 个迁移，分 wave 组织 |
 | UUID 双主键策略 | ✅ 已落地（`uuid` 列 + 序列化层映射） |
 | 会话认证（cookie + PocketBase JWT） | ✅ `session-id` / `admin-session-id` |
 | CSRF（double-submit） | ✅ 含 `PLANE_PB_CSRF=off` 调试开关 |
@@ -61,6 +43,7 @@
 | 路由锚点护栏（AST 测试） | ✅ `internal/router/patterns_test.go` |
 | 游标分页 / 分组分页 | ✅ `serializers/pagination.go` |
 | 静态缺口审计工具 | ✅ `tests/browser/audit-endpoints.py` |
+| 方法级缺口审计工具 | ✅ `tests/browser/audit-methods.py`（2026-10-10 首次全域盘点） |
 | 浏览器验收链路（6 脚本） | ✅ `tests/browser/run*.mjs` |
 | 栈管理脚本（起 / 停 / 重启 / 状态 / 重置） | ✅ `tests/browser/stack.sh`（转发到 `start-stack.sh` / `stop-stack.sh` / `reset-data.sh`） |
 | Node 运行时解析（不写死版本化路径） | ✅ `tests/browser/node-env.sh`，见 `06-PITFALLS.md` **C-13** |
@@ -71,16 +54,16 @@
 | 域 | 状态 | 备注 |
 |---|---|---|
 | 实例初始化 / admin 控制台 | ✅ | `/god-mode/` |
-| 认证（邮箱密码 / 注册 / 登出） | ✅ | @ Magic Link 需发信能力，见未就绪 N-5 |
+| 认证（邮箱密码 / 注册 / 登出） | ✅ | @ Magic Link 验证码走独立日志文件（`PLANE_MAGIC_LOG`），不发邮件，见 N-5 |
 | 工作区（创建/成员/偏好） | ✅ | |
 | 项目（创建/成员/标识） | ✅ | |
 | 工作项（增删改查/评论/附件/关系） | ✅ 主流程 | 边角操作见 §3.3 |
-| 页面（Pages + 富文本） | ✅ | **依赖 `apps/live` + Redis** |
+| 页面（Pages 数据面 + 描述） | ✅ | CRUD / 描述二进制 / 层级 均已实现；**富文本协作编辑暂不可用**——`apps/live` 属 N-10，2026-10-16 决定**暂不实现**（见 `10-REMAINING-WORK.md` §3.1、`01` D5′） |
 | 发布到 Space | ✅ | |
 | Space 端（公开只读视图） | ✅ | |
-| Cycle / Module | ⚠️ 部分 | 基础接口在，边角操作缺口多 |
-| View（保存视图/收藏/最近） | ⚠️ 部分 | |
-| Intake（收件箱） | ⚠️ 部分 | |
+| Cycle / Module | ✅ 主流程 | 端点全覆盖（2026-10-11 复核）；多值过滤已修；估算点降级为 0（见 §3.3） |
+| View（保存视图/收藏/最近） | ✅ 主流程 | 看板经通用 issues 端点 + `filters` 表达式取数；`rich_filters` 正确保存 |
+| Intake（收件箱） | ✅ 主流程 | 过滤条多值/桥表/日期窗口与 `issue__*` 排序已补齐（2026-10-11） |
 | 搜索 / Analytics | ✅ | |
 | 通知 | ✅ | |
 | 附件 / 上传 | ✅ | |
@@ -90,54 +73,84 @@
 
 ---
 
-## 3. 未完成：73 个未覆盖接口
+## 3. 静态审计与实际剩余缺口（截至 2026-10-15）
 
-> 生成方式：`python plane-pocketbase/tests/browser/audit-endpoints.py`（纯静态，不需要起服务）
+> 最新静态审计（2026-10-15 实测）：**339** 个已注册路由模式、150 种前端调用形状、**26** 种路径形状未匹配。
+> 26 项逐条归类为 **15 项方案内排除 + 10 项不可达的 `epics` 分支 + 1 项三元模板误报**，
+> **不是 26 个真实待办**，真实缺口为 **0**。上游 Django/spec 没有 `epics` API，不要为这些形状新增路由。
+> 逐条明细（含每条的引用依据）见 `docs/10-REMAINING-WORK.md` §T-4。
+>
+> 路径级审计不核对 HTTP 方法，也不能代表整模块的功能完整度。仍需跟进的功能缺口见 §3.2。
 
-按**性质**分三类。**类别决定了优先级**，不要一律当 bug 处理。
-
-### 3.1 类别 A · 方案内明确剔除（约 20 个，**不要做**）
+### 3.1 类别 A · 方案内明确剔除（当前审计中 15 项，**不要做**）
 
 这些是**故意不实现**的，因为项目决定剔除对应功能（见 `spec/exclusions.md`）。
+2026-10-15 实测 `audit-endpoints.py` 的 26 项未匹配形状中，下列 15 项属此类：
 
-| 路径 | 被剔除的功能 |
-|---|---|
-| `/api/workspaces/{}/rephrase-grammar/` | AI |
-| `/api/workspaces/{}/workspace-integrations/` | GitHub/Slack 集成 |
-| `/api/workspaces/{}/workspace-integrations/{}/github-repositories/` | GitHub |
-| `/api/workspaces/{}/workspace-integrations/{}/provider/` | 集成 |
-| `/api/workspaces/{}/webhooks/` | 出站 Webhook |
-| `/api/workspaces/{}/webhooks/{}/regenerate/` | 出站 Webhook |
-| `/api/workspaces/{}/projects/importers/jira/` | 导入 |
-| `/api/workspaces/{}/projects/{}/export-issues/` | 导出 |
-| `/api/workspaces/{}/user-activity/{}/export/` | 导出 |
-| （以及同族的其他条目） | |
+| 路径形状 | 被剔除的功能 | 依据 |
+|---|---|---|
+| `/api/integrations/` | GitHub/Slack 集成 | `spec/exclusions.md` §2 |
+| `/api/workspaces/{}/workspace-integrations/` | GitHub/Slack 集成 | `spec/exclusions.md` §2 |
+| `/api/workspaces/{}/workspace-integrations/{}/github-repositories/` | GitHub | `spec/exclusions.md` §2 |
+| `/api/workspaces/{}/workspace-integrations/{}/provider/` | 集成 | `spec/exclusions.md` §2 |
+| `/api/workspaces/{}/projects/{}/workspace-integrations/{}/github-repository-sync/` | GitHub | `spec/exclusions.md` §2 |
+| `/api/workspaces/{}/projects/{}/workspace-integrations/{}/project-slack-sync/` | Slack | `spec/exclusions.md` §2 |
+| `/api/workspaces/{}/webhooks/` | 出站 Webhook | `spec/exclusions.md` §5.2 |
+| `/api/workspaces/{}/webhooks/{}/regenerate/` | 出站 Webhook | `spec/exclusions.md` §5.2 |
+| `/api/workspaces/{}/importers/` | 导入 | `spec/exclusions.md` §4.1 |
+| `/api/workspaces/{}/importers/jira/` | 导入（Jira） | `spec/exclusions.md` §4.1 / §7-C |
+| `/api/workspaces/{}/projects/importers/jira/` | 导入（Jira） | `spec/exclusions.md` §4.1 |
+| `/api/workspaces/{}/export-issues/` | 导出 | `spec/exclusions.md` §4.3 |
+| `/api/workspaces/{}/ai-assistant/` | AI | `spec/exclusions.md` §1.2 |
+| `/api/workspaces/{}/rephrase-grammar/` | AI（上游亦无此路由，死调用） | `spec/exclusions.md` §1.2 |
+| `/api/assets/v2/workspaces/{}/{}/bulk/` | assets-v2（上游同样无此 URL） | `docs/08-IMPLEMENTATION-PLAN.md` §11.2 |
 
 **处理方式**：保持 404。**不要**为了消除数字而实现它们。
 如果将来要加回来，先更新 `spec/exclusions.md`。
 
-### 3.2 类别 B · 整模块未做（约 30 个）
+### 3.1b `{serviceType}` 模板形状（当前审计中 11 项：10 幽灵 + 1 误报，**不要做**）
 
-这些是**真实的缺口**，但属于"整个功能没做"，不是"主流程有 bug"。
+其余 11 项未匹配形状都源自前端模板变量 `${this.serviceType}`（取值域 `issues` / `epics`，
+见 `apps/web/services/issue/*.ts`）。其 `issues` 分支后端**均已注册并实测**；唯一不可达的是
+`epics` 分支——上游 Django/spec 没有 `epics` API，**不实现**（见
+`docs/08-IMPLEMENTATION-PLAN.md` §11.1）。最后一行是纯静态解析误报。
 
-| 路径族 | 说明 |
-|---|---|
-| `/api/workspaces/{}/projects/{}/{}/{}/history/` | 工作项历史 |
-| `/api/workspaces/{}/projects/{}/{}/{}/description-versions/` | 描述版本历史 |
-| `/api/workspaces/{}/projects/{}/{}/{}/issue-relation/` | 工作项关系（阻塞/被阻塞/重复…） |
-| `/api/workspaces/{}/projects/{}/{}/{}/reactions/` | 表情回应 |
-| `/api/workspaces/{}/projects/{}/{}/{}/subscribe/` | 订阅工作项 |
-| `/api/workspaces/{}/projects/{}/{}/{}/comments/` | 评论（部分） |
-| `/api/workspaces/{}/quick-links/` | 工作区快捷链接 |
-| Cycle 进度 / Estimate points / Intake work items 等 | 见 §3 说明 |
+| 路径形状 | 前端来源（`{serviceType}` 所在行） | 说明 |
+|---|---|---|
+| `/api/assets/v2/workspaces/{}/projects/{}/{}/{}/attachments/` | `issue_attachment.service.ts:52` | `issues/…/attachments/` 已注册（`router/asset.go:51-65`）；`epics` 幽灵 |
+| `/api/workspaces/{}/projects/{}/{}-detail/` | `issue.service.ts:48` | `issues-detail/` 已注册（`router/issue.go:33`）；`epics-detail/` 幽灵 |
+| `/api/workspaces/{}/projects/{}/{}/list/` | `issue.service.ts:130` | `issues/list/` 已注册（`router/issue.go:26`）；`epics/list/` 幽灵 |
+| `/api/workspaces/{}/projects/{}/{}/{}/archive/` | `issue_archive.service.ts:43` | `issues/{pk}/archive/` 已注册；`epics` 幽灵 |
+| `/api/workspaces/{}/projects/{}/{}/{}/comments/` | `issue_comment.service.ts:55` | `issues/{}/comments/` 已注册；`epics` 幽灵 |
+| `/api/workspaces/{}/projects/{}/{}/{}/description-versions/` | `work_item_version.service.ts:29` | `issues/{}/description-versions/` 已注册；`epics` 幽灵 |
+| `/api/workspaces/{}/projects/{}/{}/{}/history/` | `issue.service.ts:140` / `issue_activity.service.ts:32` | `issues/{}/history/` 已注册；`epics` 幽灵 |
+| `/api/workspaces/{}/projects/{}/{}/{}/issue-relation/` | `issue.service.ts:185` | `issues/{}/issue-relation/` 已注册；`epics` 幽灵 |
+| `/api/workspaces/{}/projects/{}/{}/{}/reactions/` | `issue_reaction.service.ts:39` | `issues/{}/reactions/` 已注册；`epics` 幽灵 |
+| `/api/workspaces/{}/projects/{}/{}/{}/subscribe/` | `issue.service.ts:385` | `issues/{}/subscribe/` 已注册；`epics` 幽灵 |
+| `/api/workspaces/{}/projects/{}/{}/{}/${this.serviceType === EIssueServiceType.EPICS …` | `issue.service.ts:261` | **三元模板误报**：`${cond ? "issues" : "sub-issues"}` 无法静态解析，`sub-issues/` 已注册（`router/issue.go:84`） |
 
-**处理方式**：按模块整体规划，不要零散补。参考 `internal/router/cycle.go`（69 行）作为最小完整模板。
+**处理方式**：保持现状。**不要**为 `epics` 新增别名路由，也不要为了消数字动这些形状。
+
+### 3.2 类别 B · 部分实现模块的剩余缺口
+
+工作项详情配套接口、quick-links 以及 Wave 3 的附件、用户活动导出和 file-assets 路由已在前几波完成；不要再把它们列为待办。
+
+**2026-10-11 复核结论**：Cycle、View、Intake 三个域的路径/方法面已全覆盖且行为缺口已补齐（见 §5 P1 划线行），本节从「部分实现」降级为「主流程完成」。遗留的**有意降级**（不是待办）：cycle/module 估算点聚合恒 0、cycle analytics `completion_chart` 为空——两者依赖 `issues.estimate_point` 与 issue 状态历史，本切片未建模。
+
+| 域 | 当前状态 | 备注 |
+|---|---|---|
+| Cycle / Estimate | ✅ 主流程完成 | 端点全覆盖；多值过滤已修；估算点降级见上 |
+| View | ✅ 主流程完成 | 看板取数走通用 issues 端点 + `?filters=<表达式树>`（`internal/filters` 求值）；`getViewIssues` 已注册但非主流程 |
+| Intake | ✅ 主流程完成 | 过滤条（status/priority/state/assignees/labels/created_by/日期窗口）与 `issue__*` 排序已补齐 |
+
+**处理方式**：先从前端 service 明确端点、方法和响应形状，再按模块整体实现和验收；不要以静态审计数字下降作为唯一完成标准。
 
 ### 3.3 类别 C · ⭐ 已实现模块的边角操作（**已全部补齐**）
 
-**这一类最该先补**，因为它们是**列表页上的可见入口** —— 用户点了就会 404。
+这一类曾是最高优先级，因为它们是列表页上的可见入口；目前已完成并验收，不再是待办。
 
-> **2026-10-10 更新**：下面这些**已全部注册并实测通过**（Wave 1 + Wave 2）。
+> **2026-10-10 更新**：下表中的接口已注册并实测通过（Wave 1 + Wave 2）。
+> Wave 3 另完成了 issue 附件 V2、profile 用户活动 CSV 导出以及 legacy file-assets/restore 路由，L3 验收细节见 `docs/08-IMPLEMENTATION-PLAN.md` §11。
 > 下表由「待办清单」改为「验收记录」，并修正了原表的**两处不准确**：
 > ① 原表漏列了约 11 项同类入口；② 原表把 `favorite-pages/` 记作"整体缺失"，
 > 实际 `POST`/`DELETE` 早已存在，缺的只有 `GET`。
@@ -178,8 +191,31 @@
 > **同类**：`projects/{}/archive/` 只有 `POST`，缺 `DELETE`（"恢复项目"点了没反应）。
 > 两处均在 Wave 2 收尾时补齐并实测（见 §4 缺陷 23/24）。
 > **结论：路径级审计不能替代逐方法核对；有疑点一律回去读前端 service 文件。**
+>
+> ✅ **2026-10-10 已完成全域方法级普查**（`audit-methods.py`）：从 `apps/web` 的
+> TS service 中提取 **368** 个 (HTTP 方法, 路径形状) 调用（含 `${this.serviceType}`
+> 三元分支展开），与 `internal/router/*.go` 的注册逐对 diff。发现并**当场补齐
+> 全部真实缺口**（均已配内容断言测试实测）：
+>
+> | 补齐的端点 | 契约来源 |
+> |---|---|
+> | `issues/{issue_id}/sub-issues/` GET/POST | `sub_issue.py` |
+> | `issues/{issue_id}/issue-links/` GET/POST + `{pk}/` GET/PATCH/PUT/DELETE | `link.py` |
+> | `issues/{pk}/archive/` GET/POST/DELETE | `archive.py` |
+> | `projects/{}/issues-detail/` GET（列表项携带 `issue_relation`） | `base.py` + `serializers/issue.py` |
+> | `projects/{}/members/` POST + `members/{pk}/` GET/PATCH/DELETE | `ProjectMemberViewSet`（ADMIN；自移除走 leave） |
+> | `projects/{}/states/` POST + `states/{pk}/` GET/PATCH/PUT/DELETE | `StateViewSet`（`state.manage` → ADMIN） |
+> | `workspaces/{}/members/{pk}/` GET/PATCH/DELETE | `WorkSpaceMemberViewSet`（ADMIN；不能改/移除自己与更高角色） |
+> | `users/me/` DELETE（账号停用 `is_active=false`） | `UserEndpoint.delete` |
+> | `sidebar-preferences/{key}/` PATCH（单个偏好项） | `WorkspaceUserPreferenceViewSet` |
+> | `projects/{}/v2/issues/` GET + `work-items/{identifier}-{sequence}/` GET | `IssuePaginatedViewSet` / `IssueDetailIdentifierEndpoint` |
+>
+> 最终结果：**METHOD-MISSING 0**；剩余 49 UNSERVED 全部为方案内排除
+> （webhooks、integrations、importers、AI、v2/assets）、`epics` 幽灵分支
+> （**不实现**，见 `08-IMPLEMENTATION-PLAN.md` §11）或三元模板误报
+> （如 `issues/{}/links/` —— issues 实际走 `issue-links/`）。
 
-### 3.4 单个高优先级待办
+### 3.4 已完成的高优先级项
 
 | 待办 | 说明 |
 |---|---|
@@ -213,7 +249,7 @@
 | 7 | `GET /api/timezones/` 404 | 未实现 |
 | 8 | `GET /api/unsplash/?query=` 404 | 未实现 |
 | 9 | `POST .../pages/` 强制要求 `name` | 参数校验过严 |
-| 10 | **Pages 编辑器死循环 —— 必须运行 `apps/live`** | 见 D-9 |
+| 10 | **Pages 编辑器死循环 —— 必须运行 `apps/live`** | 见 D-9；**N-10 暂不实现（2026-10-16）后，改为不暴露富文本编辑入口**，见 D-9 顶部备注 |
 | 11 | Space 渲染崩溃 —— `project_details.logo_props` 缺失 | 字段缺失 |
 | 12 | `project-deploy-boards/` 返回数组，前端当对象读 | 形状错 |
 | 13 | 发布时 `view_props` 被丢弃 —— Space 列表整个空掉 | 字段丢失 |
@@ -225,12 +261,12 @@
 | 19 | `workspace-members/me/` 缺失 → 全屏 "Not Authorized!" | 被 #17 掩盖 |
 | 20 | `states` / `user-properties` / `sidebar-preferences` 缺失 | 被 #17 掩盖 |
 | 21 | `home-preferences/` 缺失 → 首页挂件全部消失 | 被 #17 掩盖 + 前端渲染成"正常" |
-| 22 | 脚本写死 Node 版本化路径 → `apps/live` 静默起不来 | 见 **C-13**；后果是 Pages 编辑器无限循环（#10） |
+| 22 | 脚本写死 Node 版本化路径 → `apps/live` 静默起不来 | 见 **C-13**；后果是 Pages 编辑器无限循环（#10）。**N-10 暂不实现后本条不触发**，启用 live 时再修 |
 | 23 | **方法级缺口**：`projects/{}/issue-labels/` 只有 `GET` | 标签 CRUD 全 404；**路径级审计看不见**，见 §3.3 注 |
 | 24 | **方法级缺口**：`projects/{}/archive/` 只有 `POST` | "恢复项目"404；Django 的 `DELETE` 应答 204 |
 | 25 | `issue.cycle_id` 硬编码为 `nil` | `cycle_issues` 已存在后成了陈旧占位 → 周期进度恒为 0 |
 
-**从这 25 个缺陷提炼出的六条结论**（值得所有后来者记住）：
+**从这 25 个缺陷提炼出的十条结论**（值得所有后来者记住）：
 
 1. **前端零改动的兼容层策略成立** —— 所有问题都出在复刻层，没有一处需要改前端源码。
 2. **"接口 404"和"接口返回语义不对的 200"是两种完全不同的故障。** 前者立刻可见，
@@ -244,24 +280,65 @@
    修好后启动从 ~9 分钟降到 2 秒。
 6. **"路径已注册"不等于"接口已实现"。** `audit-endpoints.py` 按**路径**做 diff，
    于是"路径在、方法缺"的缺口（#23 `issue-labels/`、#24 `archive/`）**永远报已服务**。
-   这类缺口只能靠**逐方法核对 + 读前端 service 文件**发现 —— 静态审计的盲区必须有另一套手段补上。
+   这类缺口只能靠**逐方法核对 + 读前端 service 文件**发现 —— 静态审计的盲区必须有另一套手段补上
+   （现已落成 `audit-methods.py`，见 §3.3 注）。
+7. **"端点已实现"也不等于"行为正确"。** Cycle/View/Intake 复核发现的两类行为缺口
+   在任何路径/方法审计里都不可见：① **查询参数语义**（`priority=urgent,high` 多值、
+   `?filters=<JSON 表达式树>`、`order_by=-issue__created_at` 的 `__`→`.` 映射）——
+   必须追到前端 store 里参数的**构造处**（`computedFilteredParams`、
+   `inboxIssueQueryParams`），而不是只看 service 方法的 URL；② **消费方式**
+   （前端视图看板实际经通用端点取数，`getViewIssues` 非主流程）。回归测试要断言
+   过滤**结果集内容**，不是断言 200。
+8. **"行为正确"里最隐蔽的一类是"开得比上游更宽"**（安全审计，2026-10-15）。
+   `issues/list/?issues=<id,id>` 路径在、方法对、200 正常，但**缺 Guest 创建者过滤**，
+   任何成员拿到 UUID 就能读他人 issue。路径/方法审计对此完全无感——
+   守卫核对必须读三层代码（路由 `BindFunc` → 处理器 `ScopeOf` → 数据层作用域），
+   并把结果固化成**内容断言**（去掉守卫即 FAIL）。详见 `09-SECURITY-AUDIT.md`。
+9. **"更严"也是缺陷，而且只有对着上游源码才能发现**（同次审计第二轮）。
+   `RequireProjectRole` 缺了 `allow_permission` 的 ws-admin 旁路，于是
+   "工作区管理员 + 项目角色 Member"在 18 条路由上被 403——上游允许。
+   根因是 `ResolveProject` 里一个**不可达分支**（要求 `ProjectRole == 0` 同时要求
+   `ProjectMember != nil`）让注释里的承诺从未生效。**读自己的代码看不出问题，
+   必须把判定顺序（谁先谁后、比哪个字段）与上游装饰器逐行对齐。**
+   顺带教训：**看起来更安全的死代码是下一次重构的诱饵**（`asset.canWriteAsset`）。
+10. **同一个上游规则在本仓库有三处实现，修一处不等于修了全部**（同次审计第三轮）。
+    `allow_permission` 的 PROJECT 分支同时体现在：路由级 `RequireProjectRole`、
+    **处理器内联**的 `scope.ProjectRole` 比较、以及数据层的访客可见性过滤。
+    第二轮修好了路由级，第三轮才发现 45 处内联判定仍是旧语义，于是同一个上游规则
+    在同一个后端里表现不一致。另外三处**缺守卫**（`issues` 关联三端点、
+    `page` lock/unlock、`page` description PATCH）和一处**读取型泄漏**
+    （`page.findPage` 缺 `Q(owned_by=caller) | Q(access=0)`，任何成员可按 id 读他人私有页面）
+    也只有把内联判定逐行对照上游才查得出。
+    **教训：审计的粒度必须与实现的分布对齐 —— 规则在哪里重复实现，就要在哪里分别核对。**
 
 ---
 
 ## 5. 建议的下一步（按优先级）
 
+> **2026-10-24 更新**：本节已完成项全部划掉；**未完成项已迁移到
+> [`11-TASKLIST.md`](11-TASKLIST.md)**（L-1 … L-10 任务卡，含独占文件与可证伪验收标准）。
+> 迁移的 5 个真实功能缺口（均为"接口在、数据永远空"）：
+> `issue_activities`（活动流/燃尽图/仪表盘）、`page_versions` + `issue_description_versions`
+> （版本历史）、`notifications`（收件箱）、`issues.estimate_point`（估算聚合恒 0）、
+> `user_recent_visits`（最近访问）。另有一处运维缺口：备份脚本未覆盖 `<data>/live/`。
+> 本节以下内容仅作**历史记录**保留。
+
 | 优先级 | 事项 | 为什么 | 预估改动面 |
 |---|---|---|---|
 | ~~**P0**~~ | ~~补 §3.3 类别 C 的边角操作（尤其 `bulk-*` 与 `favorite-pages/`）~~ | ✅ **已完成**（Wave 1 + Wave 2，见 §3.3） | — |
 | ~~**P0**~~ | ~~补 `user-issues/{user_id}/`~~ | ✅ **已完成**，profile `/assigned` 已实测渲染出标题 | — |
-| **P0** | Wave 3：`{serviceType}` 的 **`epics` 变体** + `assets/v2/…/attachments/` + `file-assets/{}/{}/restore/` | `epics` 变体是同一批 handler 换前缀，收益/成本比最高 | 约 18 个端点 |
-| **P1** | 处理部署阻断项 `N-2`（`SameSite` 跨站问题） | 不改就无法跨站部署（同站不同子域可绕过，见 `08-IMPLEMENTATION-PLAN.md` §8） | 改 `middleware/auth.go` 的 cookie 设置 |
-| **P1** | 补 §3.2 中 Cycle / View / Intake 的模块内缺口 | 这些模块有基础接口但功能不完整 | 按模块整体规划 |
-| **P1** | **方法级缺口普查**：逐端点核对 HTTP 方法，不只核对路径 | `issue-labels/` 与 `archive/` 都是"路径已注册、方法缺失"，audit 脚本报不出来（缺陷 23/24） | 1 个脚本 + 人工核对 service 文件 |
-| **P2** | 建立发布前自动化检查脚本（把 `05-TESTING.md` §9 串起来） | 减少人工遗漏 | 1 个 shell 脚本 |
-| **P2** | 安全审计（对照 `spec/permissions.md` 逐端点核对守卫） | 未做过 | 系统性审查 |
-| **P3** | Magic Link 的发信能力 | 当前不通 | 需要邮件服务 |
-| **P3** | 性能/并发评估（SQLite 单写者模型） | 影响可支撑的规模 | 压测 |
+| ~~**P0**~~ | ~~Wave 3：附件 V2、profile 用户活动导出、file-assets/restore~~ | ✅ 已完成并 L3 实测；`epics` 变体经核对不是上游 API，不实现，见 `08-IMPLEMENTATION-PLAN.md` §11 | — |
+| ~~**P1**~~ | ~~按模块补 Cycle / View / Intake 的剩余缺口~~ | ✅ **已完成**（2026-10-11）：① cycle/module/issues 列表的 `priority`/`state_id` 补上 MultipleChoiceFilter 多值语义（前端 `priority=urgent,high` 此前恒为空）；② 新增 `internal/filters` 富过滤求值器，消化前端 `?filters=<JSON 表达式树>`（exact/in/range、桥表 assignees/labels/cycle/module/subscribers、state_group、日期区间）——**主看板的全部用户过滤此前都被静默忽略**；③ intake 收件箱补齐 assignees/state/created_by/labels/日期窗口过滤与 `-issue__created_at` 系排序；④ latent 修复：`orIDFilter` 参数键冲突（同查询两次使用会互相覆盖）。已知降级保留：cycle/module 估算点恒 0、analytics `completion_chart` 空（issue 历史未建模） | — |
+| ~~**P1**~~ | ~~**方法级缺口普查**：逐端点核对 HTTP 方法，不只核对路径~~ | ✅ **已完成并清零**（2026-10-10）：`audit-methods.py` 盘点 368 个调用，METHOD-MISSING 0，剩余 UNSERVED 均为排除/幽灵/误报，见 §3.3 注 | — |
+| ~~**P1**~~ | ~~补齐方法级普查登记的剩余待办~~（`v2/issues`、`work-items/{identifier}-{sequence}`、members/states CRUD、`DELETE /api/users/me/`、`sidebar-preferences/{key}` PATCH、`members/{pk}/`） | ✅ **已全部补齐**并配内容断言测试 | — |
+| ~~**P2**~~ | ~~评估跨站部署的 Cookie `SameSite` 配置~~ | ✅ **已完成**（2026-10-11）：`PLANE_COOKIE_SAMESITE`（`lax` 默认 / `strict` / `none`），选 `none` 强制 `Secure` 并对清除 cookie 复用同属性；配 `middleware/auth_test.go` 内容断言。同站部署零改动，见 `04-DEPLOYMENT.md` §3/§5、N-2 已划掉 | — |
+| ~~**P2**~~ | ~~建立发布前自动化检查脚本（把 `05-TESTING.md` §9 串起来）~~ | ✅ **已完成**（2026-10-11）：`tests/release-check.sh`——build / vet / 单元测试 / 迁移自检 / 双审计基线比对（UNSERVED 超基线即失败），`--fast` 跳全量测试、`--full` 追加浏览器链；`--fast` 已实测 6/6 全过。注意：脚本内 python 调用必须 `echo` 名字而非执行（`then python` 会进 REPL 挂死）；审计超时 `AUDIT_TIMEOUT`（默认 180s）——**勿与 `go test` 并发跑**，否则审计被挤过超时会解析出空值、看起来像基线回归（现已改为"无输出"单独报错并打印原始输出） | — |
+| ~~**P2**~~ | ~~安全审计（对照 `spec/permissions.md` 逐端点核对守卫）~~ | ✅ **已完成**（2026-10-15，三轮）：525 条路由逐域核对（L1 路由 `BindFunc` → L2 处理器内联判定 → L3 数据层作用域）。第一轮确认并修复 **1 处越权缺口**（`issues.PlainList` 缺 Guest 过滤，GHSA-32c7-84jc-4w67 绕过变体）；第二轮**对照 Django 源码**逐行比对路由级守卫，结清 4 条"契约未固定"并**再修 3 处真实偏离**（view 权限阶梯 403/400、Guest 取私有 view 的 403 原文、`RequireProjectRole` 缺 ws-admin 旁路——影响 18 条路由，外加 deploy board 守卫纠正为上游的 Admin/Member）；第三轮把同一方法用在**处理器内联判定**上，**再修 6 处**（`issues` 关联三端点完全无守卫、`page` lock/unlock 无守卫、`page` description PATCH 无守卫、`page.findPage` 缺私有页可见性——任何成员可按 id 读他人私有页面、`page.Archive` 过严、45 处内联判定缺 ws-admin 旁路）。三轮合计 **10 处真实偏离**，全部配内容断言 + 反向验证，见 `09-SECURITY-AUDIT.md` | — |
+| **P3** | ~~Magic Link 的发信能力~~ | ✅ **日志文件级已完成**（2026-10-15）：`PLANE_MAGIC_LOG` 指向独立文件，验证码以 `0600` 追加写入（`RFC3339 / email / code / expires_at`），未设则退回进程日志。**不发真邮件**——按约定"单独日志文件即可"，属降级而非缺口。配 `auth/magic_test.go` 4 用例（独立文件/追加/退回日志/坏路径不吞码）+ 反向验证 | — |
+| ~~**P3**~~ | ~~性能/并发评估（SQLite 单写者模型）~~ | **不做**（2026-10-15 决定）：本项目的设计目标是**小团队内部使用**，性能余量足够，不投入吞吐压测。容量结论按"小团队规模"给出即可，见 `04-DEPLOYMENT.md` §10 | — |
+| ~~**P2**~~ | ~~备份自动化 + 恢复演练（N-7）~~ | ✅ **已完成**（2026-10-15）：`tests/backup.sh`（在线快照 + `storage/` + `MANIFEST.txt` sha256/行数 + 保留策略）、`tests/restore.sh`（先校验、旧目录 `mv` 不删、恢复后对账）、`tests/backup-drill.sh` **19/19 通过**。含关键负对照：未 checkpoint 的 WAL 下 `cp data.db` 会丢数据、在线备份不丢 | — |
+| ~~**P2**~~ | ~~升级/迁移流程演练（N-9）~~ | ✅ **已完成**（2026-10-15）：`tests/upgrade-drill.sh` **12/12 通过**。实测：重复 `migrate up` 幂等；迁移后起服正常；**`migrate down` 要交互确认且连数据一起毁掉 → 回滚只能靠恢复备份**；迁移历史行丢失时 `migrate up` 失败、备份恢复可救回。写入 `03-ITERATION-GUIDE.md` §4.1 | — |
+| ~~**P1**~~ | ~~Pages 协作端：不引入 Redis 也要能用~~ | ✅ **已完成**（2026-10-23）：纯 Go 中继 `internal/live/`（Hocuspocus 帧 + yjs 更新落盘回放 + awareness），挂 `GET /live/collaboration`，与后端同进程同端口。浏览器端到端验收通过（打开/输入/重载/双标签页实时同步/重启后回放），并补掉两处缺口：`description_stripped` 未派生、加载后不回写 `description_html`。见 `10-REMAINING-WORK.md` §3.3 §3.4 | — |
 | **不做** | §3.1 类别 A 的全部条目 | 已在方案中明确剔除 | — |
 
 ---

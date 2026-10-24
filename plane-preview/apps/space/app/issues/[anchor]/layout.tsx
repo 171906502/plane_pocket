@@ -28,8 +28,11 @@ interface IssueMetadata {
   cover_image?: string;
 }
 
-// Loader function runs on the server and fetches metadata
-export async function loader({ params }: Route.LoaderArgs) {
+// Runs in the browser: space is built as an SPA (ssr: false), so react-router
+// rejects a plain `loader`. Behaviour is unchanged for users -- the metadata is
+// still fetched and fed to `meta()` after hydration. What is lost is the
+// server-rendered HTML, so link-preview crawlers no longer see OG tags.
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   const { anchor } = params;
 
   // Validate anchor before using in request (only allow alphanumeric, -, _)

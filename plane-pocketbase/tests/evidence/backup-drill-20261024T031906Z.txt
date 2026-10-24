@@ -1,0 +1,69 @@
+plane-pocketbase backup/restore drill
+started: 2026-10-24T03:19:06Z
+python:  Python 3.13.14
+sqlite3: 3.29.0 2019-07-10 17:32:03 fc82b73eaac8b36950e527f12c4b5dc1e147e6f4ad2217ae43ad82882a88bfa6
+
+[1m== 1. migrate up on a fresh data dir ==[0m
+[32mPASS[0m binary built and schema applied (13 migrations)
+
+[1m== 2. seed data ==[0m
+     issues=12 storage files=2 live files=2
+[32mPASS[0m seeded users/workspace/project/states/issues/page + storage tree + a live log
+
+[1m== 3. hold an uncheckpointed WAL open (the decisive setup) ==[0m
+     rows=200 wal_bytes=24752 
+[32mPASS[0m data.db-wal is non-empty (24752 bytes) — rows are NOT in data.db
+
+[1m== 4. fingerprint live state ==[0m
+     db=a739264a4dbba770… storage=2835b3fe4fb25f07… total_rows=330
+     live=735f6f29eb112788… (2 files)
+[32mPASS[0m live DB exposes all 200 WAL-only rows
+
+[1m== 5. negative control — naive 'cp data.db' of a live DB ==[0m
+[32mPASS[0m naive copy lost rows (table absent entirely (its CREATE also lived in the -wal)) — the drill discriminates
+
+[1m== 6. backup.sh while the server-equivalent writer is open ==[0m
+[32mPASS[0m backup created: .drill-1792811944-2237/backups/20261024T031941Z
+     tool: sqlite3-cli
+[32mPASS[0m online backup HAS all 200 WAL-only rows (naive copy: table absent entirely (its CREATE also lived in the -wal))
+[32mPASS[0m backup captured live/ byte-for-byte (2 files)
+
+[1m== 7. manifest checksums ==[0m
+[32mPASS[0m backup content fingerprint equals the live state
+
+[1m== 8. corrupt the live data dir ==[0m
+corrupted: 7 issues deleted, 1 user renamed, 1 storage file removed, live/ removed
+[32mPASS[0m corruption is real (db, storage and live fingerprints all changed)
+
+[1m== 9. restore.sh ==[0m
+     verifying .drill-1792811944-2237/backups/20261024T031941Z/MANIFEST.txt
+     [32mOK[0m verified 2 snapshot(s)
+     [32mOK[0m existing data dir moved aside: .drill-1792811944-2237/data.bak-1792812007
+     [32mOK[0m restored 2 database file(s)
+     [32mOK[0m restored storage/ (2 files)
+     [32mOK[0m restored live/ (2 files)
+     [32mOK[0m row counts match the manifest (11 tables)
+     [32mOK[0m restore complete into .drill-1792811944-2237/data
+[32mPASS[0m restore exited 0
+[32mPASS[0m old data dir preserved, not deleted: .drill-1792811944-2237/data.bak-1792812007
+
+[1m== 10. post-restore fingerprint must equal the pre-backup fingerprint ==[0m
+[32mPASS[0m restored database is byte-for-byte equivalent in content
+[32mPASS[0m restored storage tree matches (attachment recovered)
+[32mPASS[0m restored live/ matches (page bodies recoverable)
+
+[1m== 11. migrate up on the restored dir (schema sanity) ==[0m
+[32mPASS[0m no migrations re-applied — schema is intact
+
+[1m== 12. tamper detection ==[0m
+[32mPASS[0m tampered backup rejected on checksum mismatch
+[32mPASS[0m nothing was written for the rejected backup
+
+[1m== 13. retention (--keep 3) ==[0m
+[32mPASS[0m exactly 3 backups retained after 5 runs
+
+[1m== verdict ==[0m
+[1m19 passed, 0 failed[0m
+evidence: /d/ai-work/plane_pocket/plane-pocketbase/tests/evidence/backup-drill-20261024T031906Z.txt
+[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] {"count":67,"threshold":50,"scope":"turn","targets":["D:/ai-work/plane_pocket/plane-pocketbase/.drill-1792811944-2237"],"targetCount":1}
+(scratch not fully removed on this host — safe to delete by hand: .drill-1792811944-2237)

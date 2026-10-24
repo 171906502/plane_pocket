@@ -946,25 +946,6 @@ func (h *Handler) hasProjectAssetAccess(e *core.RequestEvent, asset *core.Record
 	return err == nil && member != nil
 }
 
-// canWriteAsset reports whether the caller may attach bytes to / mutate the
-// asset: its creator, or an active workspace member.
-func (h *Handler) canWriteAsset(e *core.RequestEvent, asset *core.Record, user *core.Record) bool {
-	if asset.GetString("created_by") == user.Id {
-		return true
-	}
-	if ws := asset.GetString("workspace"); ws != "" {
-		member, err := h.App.FindFirstRecordByFilter(
-			"workspace_members",
-			"workspace = {:ws} && member = {:member} && is_active = true",
-			dbx.Params{"ws": ws, "member": user.Id},
-		)
-		if err == nil && member != nil && member.GetInt("role") >= middleware.RoleMember {
-			return true
-		}
-	}
-	return false
-}
-
 // streamAsset writes the stored bytes with Plane's content type and the given
 // disposition. Django 302s to S3; here we serve the bytes directly.
 func (h *Handler) streamAsset(e *core.RequestEvent, asset *core.Record, disposition string) error {

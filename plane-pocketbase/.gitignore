@@ -15,6 +15,11 @@
 # Temporary route backups kept locally for recovery
 internal/_router.bak-*/
 
+# Backup/restore drill scratch dirs and release-check temporaries
+.drill*/
+.tmp-drill/
+.tmp-release-check/
+
 # Browser runtime dependency and session state (cookies, caches, local state)
 tests/browser/node_modules/
 tests/browser/profile/
@@ -40,3 +45,14 @@ tests/evidence/screenshots.aborted-*/
 tests/evidence/screenshots.stale-bak-*/
 
 tests/smoke/.*.txt
+
+# Upgrade drill scratch (per-run timestamped dir, safe to delete by hand)
+.upgrade-*/
+# Python bytecode from tests/pbdata.py
+tests/__pycache__/
+# Leftover probe from the gen-vectors experiment
+*.tmp.cjs
+# Test scratch kept out of the index
+.scratch/
+
+tests/logs/*.bak

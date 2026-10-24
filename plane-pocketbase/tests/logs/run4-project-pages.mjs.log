@@ -1,6 +1,6 @@
 
 ===== D1-project-pages =====
-TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects ⌚ hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects ⌚ hrms Work items Pages Community ⌚ hrms Pages Add page Document 
+TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Work items Pages Community 🎓 hrms Pages Add page Docume
   [shot] 20-project-pages.png  (项目 → Pages)
 
 ===== D2-create-page =====
@@ -9,31 +9,30 @@ contenteditable count(first)=1
 clicked title
 typed title
   [shot] 22-page-created.png  (页面已创建（标题已自动保存）)
-TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects ⌚ hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects ⌚ hrms Work items Pages Community ⌚ hrms Pages PocketBase 迁移验证记录 
+TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Work items Pages Community 🎓 hrms Pages PocketBase 迁移验证
 
 ===== D3-project-settings =====
-url=http://localhost:3000/hrms/settings/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/
-TEXT=H hrms Star us on GitHub W Project settings ⌚ hrms Admin General General Members Features Cycles Modules Views Pages Intake Work Structure States Labels Estimates Execution Automations General ⌚ hrms HRMS . Public Change cover Project name Description Project ID Network Public Project Timezone Selec
+url=http://localhost:8000/hrms/settings/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/
+TEXT=H hrms Star us on GitHub W Project settings 🎓 hrms Admin General General Members Features Cycles Modules Views Pages Intake Work Structure States Labels Estimates Execution Automations General 🎓 hrms HRMS . Public Change cover Project name Description Project ID Network Public Project Timezone Sel
   [shot] 23-project-settings.png  (项目设置（General）)
 
 ===== D4-workspace-settings =====
-TEXT=H hrms Star us on GitHub W Workspace settings H hrms Admin Administration General Members Billing & Plans Exports Developer Webhooks General H hrms localhost:3000/hrms Upload logo Workspace name Company size Just myself Workspace URL Workspace Timezone Select a timezone Update workspace Delete this 
+TEXT=H hrms Star us on GitHub W Workspace settings H hrms Admin Administration General Members Billing & Plans Exports Developer Webhooks General H hrms localhost:8000/hrms Upload logo Workspace name Company size Just myself Workspace URL Workspace Timezone Select a timezone Update workspace Delete this 
   [shot] 24-workspace-settings.png  (工作区设置（General）)
 
 ===== D5-your-work =====
-your-work href=/hrms/profile/377f6234-9cef-4d82-b745-57b9edf1fb08/
-url=http://localhost:3000/hrms/profile/377f6234-9cef-4d82-b745-57b9edf1fb08/
-TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects ⌚ hrms Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects ⌚ hrms Community Your work Summary Assigned Created Subscribed Activity Overview W
+your-work href=/hrms/profile/cbfc4789-1b1b-4d53-b736-e431e912914c/
+url=http://localhost:8000/hrms/profile/cbfc4789-1b1b-4d53-b736-e431e912914c/
+TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Community Your work Summary Assigned Created Subscribed Activity Overview
   [shot] 25-your-work.png  (Your work（个人工作台）)
 
-===== run4-project-pages  (2026-10-09T16:28:14.397Z) =====
+===== run4-project-pages  (2026-10-24T02:46:51.465Z) =====
 -- FAILED REQUESTS --
-404  GET    /api/workspaces/hrms/quick-links/
-404  GET    /api/workspaces/hrms/quick-links/
+(none)
 
 -- MUTATIONS --
-201  POST   /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/pages/
-200  PATCH  /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/pages/7b63e820-7a0d-4ad5-a200-b5b6e62297c2/
+201  POST   /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/pages/
+200  PATCH  /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/pages/92944d0e-3db3-4bd7-9f19-5d7e1edcbe0b/
 
 -- API READS (deduped, query strings kept) --
 200  GET    /api/instances/
@@ -43,36 +42,36 @@ TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Sti
 200  GET    /api/users/me/workspaces/
 200  GET    /api/users/me/workspaces/hrms/project-roles/
 200  GET    /api/workspaces/hrms/members/
+200  GET    /api/workspaces/hrms/projects/
 200  GET    /api/workspaces/hrms/sidebar-preferences/
 200  GET    /api/workspaces/hrms/workspace-members/me/
-200  GET    /api/workspaces/hrms/projects/
 200  GET    /api/workspaces/hrms/user-properties/
 200  GET    /api/workspaces/hrms/states/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/members/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/project-members/me/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issue-labels/
 200  GET    /api/workspaces/hrms/users/notifications/unread/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/project-members/me/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issue-labels/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/members/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/user-properties/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/estimates/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/intake-state/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/cycles/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/user-properties/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/states/
 200  GET    /api/workspaces/hrms/modules/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/modules/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/modules/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/estimates/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/cycles/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/views/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/intake-state/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/pages/
 200  GET    /api/workspaces/hrms/user-favorites/?all=true
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/views/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/states/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/pages/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/pages/7b63e820-7a0d-4ad5-a200-b5b6e62297c2/?track_visit=true
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/pages/92944d0e-3db3-4bd7-9f19-5d7e1edcbe0b/?track_visit=true
 200  GET    /api/unsplash/?query=
 200  GET    /api/timezones/
 200  GET    /api/workspaces/hrms/home-preferences/
-404  GET    /api/workspaces/hrms/quick-links/
+200  GET    /api/workspaces/hrms/quick-links/
 200  GET    /api/workspaces/hrms/recent-visits/
 200  GET    /api/workspaces/hrms/stickies/?cursor=30:0:0&per_page=30&query=
-200  GET    /api/workspaces/hrms/user-activity/377f6234-9cef-4d82-b745-57b9edf1fb08/?per_page=10
-200  GET    /api/workspaces/hrms/user-stats/377f6234-9cef-4d82-b745-57b9edf1fb08/
-200  GET    /api/workspaces/hrms/user-profile/377f6234-9cef-4d82-b745-57b9edf1fb08/
+200  GET    /api/workspaces/hrms/user-activity/cbfc4789-1b1b-4d53-b736-e431e912914c/?per_page=10
+200  GET    /api/workspaces/hrms/user-profile/cbfc4789-1b1b-4d53-b736-e431e912914c/
+200  GET    /api/workspaces/hrms/user-stats/cbfc4789-1b1b-4d53-b736-e431e912914c/
 
 
-FINAL_URL=http://localhost:3000/hrms/profile/377f6234-9cef-4d82-b745-57b9edf1fb08/
+FINAL_URL=http://localhost:8000/hrms/profile/cbfc4789-1b1b-4d53-b736-e431e912914c/

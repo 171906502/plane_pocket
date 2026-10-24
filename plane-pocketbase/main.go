@@ -14,6 +14,7 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 
+	"github.com/plane-pocketbase/plane-pocketbase/internal/config"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/router"
 
 	// Blank import so the Go collection migrations in pb_migrations are linked
@@ -39,6 +40,14 @@ func main() {
 
 	// Plane compatibility layer: every Plane REST route is registered here.
 	router.Register(app)
+
+	// Optional: serve the built web/admin SPAs straight from this binary
+	// (PLANE_WEB_DIR / PLANE_ADMIN_DIR). No-op unless those env vars are set.
+	router.RegisterStatic(app)
+
+	// Fail fast on a misconfigured CORS --origins list. The check is bound to
+	// OnServe, so it only affects the serve path and never `migrate`.
+	config.RegisterServeOriginsCheck(app, app.RootCmd)
 
 	if err := app.Start(); err != nil {
 		log.Fatal(err)

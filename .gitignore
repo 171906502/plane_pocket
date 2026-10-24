@@ -51,3 +51,8 @@ _scratch/
 # 前端产物（plane-preview/packages/*/dist、apps/live/dist）由
 # plane-preview/.gitignore 中作用域受限的 `dist/` 自行处理。
 # ----------------------------------------------------------------------------
+
+# Agent working memory / scratch — local only, regenerable
+.workbuddy-ai/
+.scratch/
+*.tmp.cjs

@@ -2,13 +2,36 @@ package module
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/plane-pocketbase/plane-pocketbase/internal/filters"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/middleware"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/serializers"
 )
+
+// orValues turns a comma-separated list of literal (non-UUID) values — the wire
+// form of Django's MultipleChoiceFilter — into `(col = {:k0} || col = {:k1} …)`.
+// Blank entries are dropped; an all-blank input yields "" (no predicate).
+func orValues(column, raw string, params dbx.Params) string {
+	parts := make([]string, 0)
+	for _, item := range strings.Split(raw, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		key := "v" + strconv.Itoa(len(parts))
+		parts = append(parts, column+" = {:"+key+"}")
+		params[key] = item
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "(" + strings.Join(parts, " || ") + ")"
+}
 
 // IssuesList serves GET …/modules/{module_id}/issues/ (ModuleIssueViewSet.list):
 // the cursor-paginated issue envelope. ADMIN/MEMBER only.
@@ -17,7 +40,7 @@ func (h *Handler) IssuesList(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	record, err := h.findModule(scope, e.Request.PathValue("module_id"))
@@ -30,17 +53,31 @@ func (h *Handler) IssuesList(e *core.RequestEvent) error {
 
 	ids := h.bridgeIssueIDs(record.Id)
 	params := dbx.Params{}
-	filter := "deleted_at = '' && archived_at = '' && is_draft = false && " + orIDFilter("id", ids, params)
-	if stateID := e.Request.URL.Query().Get("state_id"); stateID != "" {
-		if state, _ := serializers.FindByUUID(h.App, "states", stateID); state != nil {
-			filter += " && state = {:state}"
-			params["state"] = state.Id
+	filter := "deleted_at = '' && archived_at = '' && is_draft = false && " + orIDFilter("id", "i", ids, params)
+	// MultipleChoiceFilter semantics: comma-separated values on the wire.
+	if raw := e.Request.URL.Query().Get("state_id"); raw != "" {
+		stateIDs := make([]string, 0)
+		for _, part := range strings.Split(raw, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			if state, _ := serializers.FindByUUID(h.App, "states", part); state != nil {
+				stateIDs = append(stateIDs, state.Id)
+			}
+		}
+		if len(stateIDs) > 0 {
+			filter += " && " + orIDFilter("state", "st", stateIDs, params)
 		}
 	}
-	if priority := e.Request.URL.Query().Get("priority"); priority != "" {
-		filter += " && priority = {:priority}"
-		params["priority"] = priority
+	if raw := e.Request.URL.Query().Get("priority"); raw != "" {
+		if clause := orValues("priority", raw, params); clause != "" {
+			filter += " && " + clause
+		}
 	}
+	// Rich filters: the shared issue-filter helper serialises the expression
+	// tree into the `filters` query param for every issue board.
+	filter = filters.Apply(h.App, filter, params, scope.Project.Id, e.Request.URL.Query().Get("filters"))
 
 	perPage, cursor := serializers.ListParams(e, serializers.MaxPerPage)
 	envelope, err := serializers.Paginate(h.App, serializers.ListQuery{
@@ -70,7 +107,7 @@ func (h *Handler) IssuesCreate(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	record, err := h.findModule(scope, e.Request.PathValue("module_id"))
@@ -146,7 +183,7 @@ func (h *Handler) IssueModulesCreate(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	issue, _ := serializers.FindByUUID(h.App, "issues", e.Request.PathValue("issue_id"))
@@ -229,7 +266,7 @@ func (h *Handler) IssueDetail(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	link, issue, module, err := h.findModuleIssue(scope, e.Request.PathValue("module_id"), e.Request.PathValue("issue_id"))
@@ -249,7 +286,7 @@ func (h *Handler) IssueUpdate(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	link, issue, module, err := h.findModuleIssue(scope, e.Request.PathValue("module_id"), e.Request.PathValue("issue_id"))
@@ -269,7 +306,7 @@ func (h *Handler) IssueDelete(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	link, _, _, err := h.findModuleIssue(scope, e.Request.PathValue("module_id"), e.Request.PathValue("issue_id"))

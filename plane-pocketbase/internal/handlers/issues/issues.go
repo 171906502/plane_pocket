@@ -15,6 +15,7 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 
+	"github.com/plane-pocketbase/plane-pocketbase/internal/filters"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/middleware"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/serializers"
 )
@@ -33,6 +34,18 @@ func New(app core.App) *Handler {
 // (IssueViewSet.list) — the cursor-paginated envelope whose `results` are
 // IssueSerializer objects.
 func (h *Handler) List(e *core.RequestEvent) error {
+	return h.listIssues(e, false)
+}
+
+// ListDetail serves GET /api/workspaces/{slug}/projects/{project_id}/issues-detail/
+// (IssueDetailEndpoint.get). The web client picks it over /issues/ whenever the
+// query expands `issue_relation` without grouping; the only contract difference
+// is the per-issue `issue_relation` array.
+func (h *Handler) ListDetail(e *core.RequestEvent) error {
+	return h.listIssues(e, true)
+}
+
+func (h *Handler) listIssues(e *core.RequestEvent, withRelations bool) error {
 	scope := middleware.ScopeOf(e)
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
@@ -48,16 +61,17 @@ func (h *Handler) List(e *core.RequestEvent) error {
 		filter += " && created_by = {:user}"
 		params["user"] = user.Id
 	}
-	if priority := e.Request.URL.Query().Get("priority"); priority != "" {
-		filter += " && priority = {:priority}"
-		params["priority"] = priority
+	// priority/state_id are Django MultipleChoiceFilters: comma-separated on
+	// the wire (e.g. `?priority=urgent,high` from the urgent/high board).
+	if clause := enumColumnClause(e.Request.URL.Query().Get("priority"), "priority", "pri", params); clause != "" {
+		filter += " && " + clause
 	}
-	if stateID := e.Request.URL.Query().Get("state_id"); stateID != "" {
-		if state, _ := serializers.FindByUUID(h.App, "states", stateID); state != nil {
-			filter += " && state = {:state}"
-			params["state"] = state.Id
-		}
+	if clause := h.uuidColumnClause(e.Request.URL.Query().Get("state_id"), "state", "states", "st", params); clause != "" {
+		filter += " && " + clause
 	}
+	// Rich filters: the web client serialises the whole filter expression tree
+	// as the `filters` query parameter (computedFilteredParams).
+	filter = filters.Apply(h.App, filter, params, scope.Project.Id, e.Request.URL.Query().Get("filters"))
 
 	perPage, cursor := serializers.ListParams(e, serializers.MaxPerPage)
 	envelope, err := serializers.Paginate(h.App, serializers.ListQuery{
@@ -68,7 +82,11 @@ func (h *Handler) List(e *core.RequestEvent) error {
 		PerPage:    perPage,
 		Cursor:     cursor,
 	}, func(issue *core.Record) any {
-		return serializers.Issue(h.App, issue)
+		out := serializers.Issue(h.App, issue)
+		if withRelations {
+			out["issue_relation"] = h.issueRelationList(issue)
+		}
+		return out
 	})
 	if err != nil {
 		return err
@@ -85,6 +103,12 @@ func (h *Handler) PlainList(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
+	user := middleware.CurrentUser(e)
+	// permissions.md §5.1: the guest restriction applies on EVERY issue-listing
+	// path, including the `?issues=<id,id>` fetch-by-id variant, because that
+	// endpoint previously bypassed it (GHSA-32c7-84jc-4w67).
+	guestRestricted := scope.ProjectRole == middleware.RoleGuest &&
+		!scope.Project.GetBool("guest_view_all_features") && user != nil
 
 	raw := e.Request.URL.Query().Get("issues")
 	if raw == "" {
@@ -105,6 +129,9 @@ func (h *Handler) PlainList(e *core.RequestEvent) error {
 	for _, id := range wanted {
 		issue, _ := serializers.FindByUUID(h.App, "issues", id)
 		if issue == nil || issue.GetString("project") != scope.Project.Id || issue.GetString("deleted_at") != "" {
+			continue
+		}
+		if guestRestricted && issue.GetString("created_by") != user.Id {
 			continue
 		}
 		results = append(results, serializers.Issue(h.App, issue))
@@ -129,7 +156,7 @@ func (h *Handler) Create(e *core.RequestEvent) error {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
 	// issue.create: ADMIN or MEMBER only (permissions.md §3).
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 
@@ -266,7 +293,7 @@ func (h *Handler) Update(e *core.RequestEvent) error {
 	if issue == nil {
 		return e.JSON(http.StatusNotFound, map[string]any{"error": "Issue not found"})
 	}
-	if !middleware.IsCreator(e, issue) && scope.ProjectRole < middleware.RoleMember {
+	if !middleware.IsCreator(e, issue) && !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	user := middleware.CurrentUser(e)
@@ -332,7 +359,7 @@ func (h *Handler) Delete(e *core.RequestEvent) error {
 	if issue == nil {
 		return e.JSON(http.StatusNotFound, map[string]any{"error": "The required object does not exist."})
 	}
-	if !middleware.IsCreator(e, issue) && scope.ProjectRole < middleware.RoleAdmin {
+	if !middleware.IsCreator(e, issue) && !middleware.ProjectRoleAtLeast(e, middleware.RoleAdmin) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	issue.Set("deleted_at", serializers.Now())

@@ -26,6 +26,13 @@ const (
 	projectMembersCollection   = "project_members"
 )
 
+// deniedMessage is the body every role guard returns. Plane's own app-API
+// decorator answers 403 with {"error": "You don't have the required
+// permissions."}; this backend has always used DRF's generic
+// {"detail": …} wording for the same situation, uniformly across every domain.
+// Keep the wording centralised here so a future change is one line.
+const deniedMessage = "You do not have permission to perform this action."
+
 // Scope is the authorized request context: which workspace and project the
 // caller is acting on, and what role they hold in each.
 type Scope struct {
@@ -154,18 +161,65 @@ func RequireWorkspaceRole(minRole int) func(*core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		scope := ScopeOf(e)
 		if scope == nil || scope.WorkspaceRole < minRole {
-			return serializers.Forbidden(e, "You do not have permission to perform this action.")
+			return serializers.Forbidden(e, deniedMessage)
 		}
 		return e.Next()
 	}
 }
 
-// RequireProjectRole rejects callers below the given project role.
+// ProjectRoleAtLeast answers the question every project-scoped guard asks:
+// may this caller act at the given project role?
+//
+// It ports plane.app.permissions.allow_permission's PROJECT branch, which is
+// what nearly every project-scoped row in spec/permissions.md is guarded by:
+//
+//	ProjectMember(role__in=allowed) OR (ProjectMember active AND WorkspaceMember role=ADMIN)
+//
+// The second clause matters — a workspace Admin who is an active project member
+// passes **every** project-scoped row regardless of their project role. Note
+// this is not the same as a project Admin: it is the workspace role that grants
+// the bypass.
+//
+// Handlers that check a role inline (rather than through RequireProjectRole)
+// must use this, or they will refuse a workspace Admin holding a Guest project
+// role that upstream admits. It deliberately reads the *raw* scope.ProjectRole:
+// the guest-visibility filters in the handlers key off `ProjectRole == RoleGuest`
+// exactly as Plane's queryset filters key off the raw project role, so the
+// bypass must live in the predicate, never in scope resolution.
+func ProjectRoleAtLeast(e *core.RequestEvent, minRole int) bool {
+	scope := ScopeOf(e)
+	if scope == nil {
+		return false
+	}
+	if scope.ProjectRole >= minRole {
+		return true
+	}
+	return scope.ProjectMember != nil && scope.WorkspaceRole >= RoleAdmin
+}
+
+// RequireProjectRole rejects callers below the given project role, with the
+// workspace-Admin bypass described on ProjectRoleAtLeast.
 func RequireProjectRole(minRole int) func(*core.RequestEvent) error {
+	return func(e *core.RequestEvent) error {
+		if !ProjectRoleAtLeast(e, minRole) {
+			return serializers.Forbidden(e, deniedMessage)
+		}
+		return e.Next()
+	}
+}
+
+// RequireProjectMemberRole rejects callers below the given project role and
+// deliberately has **no** workspace-Admin bypass: it ports
+// plane.app.permissions.ProjectMemberPermission, whose non-safe branch is a
+// plain `ProjectMember.role__in=[ADMIN, MEMBER]` lookup. Deploy-board
+// management (`DeployBoardViewSet`) is the only project-scoped surface that uses
+// that class, so it is the only one where a workspace Admin with a Guest
+// project role is refused.
+func RequireProjectMemberRole(minRole int) func(*core.RequestEvent) error {
 	return func(e *core.RequestEvent) error {
 		scope := ScopeOf(e)
 		if scope == nil || scope.ProjectRole < minRole {
-			return serializers.Forbidden(e, "You do not have permission to perform this action.")
+			return serializers.Forbidden(e, deniedMessage)
 		}
 		return e.Next()
 	}

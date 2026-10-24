@@ -21,9 +21,16 @@ export const PROFILE = path.join(ROOT, "browser", "profile");
 export const SHOTS = path.join(ROOT, "evidence", "screenshots");
 export const NETLOG = path.join(ROOT, "evidence", "network.log");
 
-export const WEB = "http://localhost:3000";
-export const SPACE = "http://localhost:3002";
-export const ADMIN = "http://localhost:3001";
+// Origins are overridable so the same chain can drive either deployment:
+//   * multi-port dev stack (defaults): web 3000 / admin 3001 / space 3002
+//   * single-port Go binary:          all three = http://localhost:8000
+//     PLANE_WEB_URL=http://localhost:8000 \
+//     PLANE_ADMIN_URL=http://localhost:8000 \
+//     PLANE_SPACE_URL=http://localhost:8000
+// (the scripts append /god-mode, /spaces, /hrms themselves, so the value is an origin)
+export const WEB = process.env.PLANE_WEB_URL || "http://localhost:3000";
+export const SPACE = process.env.PLANE_SPACE_URL || "http://localhost:3002";
+export const ADMIN = process.env.PLANE_ADMIN_URL || "http://localhost:3001";
 
 export async function launch({ headless = true } = {}) {
   fs.mkdirSync(SHOTS, { recursive: true });

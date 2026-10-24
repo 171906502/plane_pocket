@@ -1,7 +1,7 @@
 
 ===== C1-open-project-work-items =====
-project href=/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues projectId=bef44785-df97-41de-b520-e8ff8f25fbe4
-TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects ⌚ hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects ⌚ hrms Work items Pages Community ⌚ hrms Work Items Display Analytics Add work item Start with your first work item. Work items are the building blocks of your proje
+project href=/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issues projectId=31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8
+TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Work items Pages Community 🎓 hrms Work Items Display Analytics Add work item Start with your first work item. Work items are the building blocks of your pr
   [shot] 14-work-items-empty.png  (项目 → Work items（空态）)
 
 ===== C2-add-work-item =====
@@ -25,8 +25,8 @@ TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Sti
     <a> Projects
     <button type=button id=extended-sidebar-toggle> More
     <button type=button> Projects
-    <a> ⌚ hrms
-    <button type=button> ⌚ hrms
+    <a> 🎓 hrms
+    <button type=button> 🎓 hrms
     <button type=button id=base-ui-_r_2m_> 
     <a> Work items
     <a> Pages
@@ -42,13 +42,13 @@ TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Sti
     <a> Projects
     <button type=button id=extended-sidebar-toggle> More
     <button type=button> Projects
-    <a> ⌚ hrms
-    <button type=button> ⌚ hrms
+    <a> 🎓 hrms
+    <button type=button> 🎓 hrms
     <button type=button id=base-ui-_r_30_> 
     <a> Work items
     <a> Pages
     <button type=button id=base-ui-_r_1m_> Community
-    <button type=button> ⌚ hrms
+    <button type=button> 🎓 hrms
     <button type=button> 
     <a> Work Items
     <button type=button id=base-ui-_r_3k_> 
@@ -56,19 +56,19 @@ TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Sti
     <button type=button id=base-ui-_r_3q_> 
     <button type=button id=base-ui-_r_3t_> 
     <button type=button id=base-ui-_r_40_> 
-    <button type=button> 
+    <button type=button id=base-ui-_r_4i_> 
     <button type=button id=base-ui-_r_47_> Display
     <button type=button> Analytics
     <button type=button> Add work item
     <button type=button> Create your first work item
-    <button type=button> ⌚ hrms
+    <button type=button> 🎓 hrms
     <input type=text id=name name=name ph="Title"> 验证 PocketBase 后端：创建第一个工作项
     <button type=button> Backlog
     <button type=button> None
     <button type=button> Assignees
     <button type=button> Labels
-    <button type=button id=base-ui-_r_4q_> Start date
-    <button type=button id=base-ui-_r_4s_> Due date
+    <button type=button id=base-ui-_r_4t_> Start date
+    <button type=button id=base-ui-_r_4v_> Due date
     <button type=button> Add parent
     <button type=button> Discard
     <button type=submit> Save
@@ -78,8 +78,8 @@ HAS_TITLE=true
   [shot] 16-work-item-created.png  (工作项已创建并出现在列表中)
 
 ===== C4-open-work-item =====
-url=http://localhost:3000/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/
-TEXT=H hrms Star us on GitHub W Saved Subscribe HRMS-1 25/255 Last edited by Wilber less than a minute ago Add sub-work item Add relation Add link Attach Properties State Backlog Assignees Add assignees Priority None Created by W Wilber Start date Add start date Due date Add due date Parent Add parent work item Labels Add labels Activity Comment Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects ⌚ hrms Work items Pages Community Projects New work item Home Drafts Y
+url=http://localhost:8000/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issues/
+TEXT=H hrms Star us on GitHub W Saved Subscribe HRMS-1 25/255 Last edited by Wilber less than a minute ago Add sub-work item Add relation Add link Attach Properties State Backlog Assignees Add assignees Priority None Created by W Wilber Start date Add start date Due date Add due date Parent Add parent work item Labels Add labels Activity Comment Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Work items Pages Community Projects New work item Home Drafts 
   [shot] 17-work-item-detail.png  (工作项详情面板)
 
 ===== C5-add-description =====
@@ -87,59 +87,53 @@ TEXT=H hrms Star us on GitHub W Saved Subscribe HRMS-1 25/255 Last edited by Wil
 
 ===== C6-reload-persistence =====
 AFTER_RELOAD_HAS_TITLE=true
-TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects ⌚ hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects ⌚ hrms Work items Pages Community ⌚ hrms Work Items 1 Display Analytics Add work item All work items 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog None Start date Due d
+TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 🎓 hrms Work items Pages Community 🎓 hrms Work Items 1 Display Analytics Add work item All work items 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog None Start date Du
   [shot] 19-work-item-after-reload.png  (刷新后工作项仍然存在（持久化验证）)
 
-===== run3-issue  (2026-10-09T16:27:13.383Z) =====
+===== run3-issue  (2026-10-24T02:45:54.268Z) =====
 -- FAILED REQUESTS --
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/c4005052-920f-497b-8eea-49ac8f29201b/history/?activity_type=issue-property
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/c4005052-920f-497b-8eea-49ac8f29201b/history/?activity_type=issue-comment
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/c4005052-920f-497b-8eea-49ac8f29201b/sub-issues/
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/c4005052-920f-497b-8eea-49ac8f29201b/issue-relation/
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/work-items/c4005052-920f-497b-8eea-49ac8f29201b/description-versions/
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/work-items/c4005052-920f-497b-8eea-49ac8f29201b/description-versions/
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/c4005052-920f-497b-8eea-49ac8f29201b/history/?activity_type=issue-property
+(none)
 
 -- MUTATIONS --
-201  POST   /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/
-204  PATCH  /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/c4005052-920f-497b-8eea-49ac8f29201b/
+201  POST   /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issues/
+204  PATCH  /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issues/26995e1e-9648-4d99-a5ec-678823db3d78/
 
 -- API READS (deduped, query strings kept) --
 200  GET    /api/instances/
 200  GET    /api/users/me/
-200  GET    /api/users/me/profile/
 200  GET    /api/users/me/settings/
+200  GET    /api/users/me/profile/
 200  GET    /api/users/me/workspaces/
 200  GET    /api/users/me/workspaces/hrms/project-roles/
 200  GET    /api/workspaces/hrms/members/
 200  GET    /api/workspaces/hrms/sidebar-preferences/
 200  GET    /api/workspaces/hrms/workspace-members/me/
-200  GET    /api/workspaces/hrms/user-properties/
 200  GET    /api/workspaces/hrms/projects/
+200  GET    /api/workspaces/hrms/user-properties/
 200  GET    /api/workspaces/hrms/states/
+200  GET    /api/workspaces/hrms/projects/details/
 200  GET    /api/workspaces/hrms/users/notifications/unread/
 200  GET    /api/workspaces/hrms/user-favorites/?all=true
-200  GET    /api/workspaces/hrms/projects/details/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issue-labels/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/members/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/project-members/me/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/user-properties/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/modules/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/estimates/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/intake-state/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/cycles/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issue-labels/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/members/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/project-members/me/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/intake-state/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/user-properties/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/states/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/estimates/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/cycles/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/modules/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/views/
 200  GET    /api/workspaces/hrms/modules/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/views/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/states/
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/?order_by=-created_at&sub_issue=true&filters=%7B%7D&layout=list&cursor=100:0:0&per_page=100
-200  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/c4005052-920f-497b-8eea-49ac8f29201b/?expand=issue_reactions,issue_attachments,issue_link,parent
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/c4005052-920f-497b-8eea-49ac8f29201b/history/?activity_type=issue-property
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/c4005052-920f-497b-8eea-49ac8f29201b/history/?activity_type=issue-comment
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/c4005052-920f-497b-8eea-49ac8f29201b/sub-issues/
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/c4005052-920f-497b-8eea-49ac8f29201b/issue-relation/
-404  GET    /api/workspaces/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/work-items/c4005052-920f-497b-8eea-49ac8f29201b/description-versions/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issues/?order_by=-created_at&sub_issue=true&filters=%7B%7D&layout=list&cursor=100:0:0&per_page=100
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issues/26995e1e-9648-4d99-a5ec-678823db3d78/?expand=issue_reactions,issue_attachments,issue_link,parent
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issues/26995e1e-9648-4d99-a5ec-678823db3d78/history/?activity_type=issue-property
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issues/26995e1e-9648-4d99-a5ec-678823db3d78/history/?activity_type=issue-comment
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issues/26995e1e-9648-4d99-a5ec-678823db3d78/sub-issues/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issues/26995e1e-9648-4d99-a5ec-678823db3d78/issue-relation/
+200  GET    /api/workspaces/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/work-items/26995e1e-9648-4d99-a5ec-678823db3d78/description-versions/
 
 
-FINAL_URL=http://localhost:3000/hrms/projects/bef44785-df97-41de-b520-e8ff8f25fbe4/issues/
-PROJECT_ID=bef44785-df97-41de-b520-e8ff8f25fbe4
+FINAL_URL=http://localhost:8000/hrms/projects/31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8/issues/
+PROJECT_ID=31c69bf7-52c1-4dcc-b7d8-2aecaec89ab8

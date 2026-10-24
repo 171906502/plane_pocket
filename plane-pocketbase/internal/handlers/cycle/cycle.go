@@ -92,7 +92,7 @@ func (h *Handler) WorkspaceList(e *core.RequestEvent) error {
 
 	params := dbx.Params{"workspace": scope.Workspace.Id}
 	filter := "workspace = {:workspace} && deleted_at = '' && archived_at = '' && " +
-		orIDFilter("project", projectIDs, params)
+		orIDFilter("project", "p", projectIDs, params)
 
 	cycles, err := h.App.FindRecordsByFilter("cycles", filter, "-created_at", 0, 0, params)
 	if err != nil {
@@ -111,7 +111,7 @@ func (h *Handler) Create(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 
@@ -208,7 +208,7 @@ func (h *Handler) Update(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	record, err := h.findCycle(scope, e.Request.PathValue("pk"))
@@ -275,7 +275,7 @@ func (h *Handler) Delete(e *core.RequestEvent) error {
 	if record == nil {
 		return e.JSON(http.StatusNotFound, map[string]any{"error": "The required object does not exist."})
 	}
-	if !middleware.IsCreator(e, record) && scope.ProjectRole < middleware.RoleAdmin {
+	if !middleware.IsCreator(e, record) && !middleware.ProjectRoleAtLeast(e, middleware.RoleAdmin) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	record.Set("deleted_at", serializers.Now())
@@ -292,7 +292,7 @@ func (h *Handler) DateCheck(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	body := map[string]any{}
@@ -377,7 +377,7 @@ func (h *Handler) FavoriteCreate(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	body := map[string]any{}
@@ -419,7 +419,7 @@ func (h *Handler) FavoriteDestroy(e *core.RequestEvent) error {
 	if user == nil {
 		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	h.deleteFavorite(user.Id, scope.Project.Id, "cycle", e.Request.PathValue("cycle_id"))
@@ -480,7 +480,7 @@ func (h *Handler) Archive(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	record, err := h.findCycleIncludingArchived(scope, e.Request.PathValue("cycle_id"))
@@ -509,7 +509,7 @@ func (h *Handler) Unarchive(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	record, err := h.findCycleIncludingArchived(scope, e.Request.PathValue("cycle_id"))
@@ -532,7 +532,7 @@ func (h *Handler) ArchivedList(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	cycles, err := h.App.FindRecordsByFilter(
@@ -553,7 +553,7 @@ func (h *Handler) ArchivedDetail(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	record, err := h.findCycleIncludingArchived(scope, e.Request.PathValue("pk"))
@@ -659,7 +659,7 @@ func (h *Handler) TransferIssues(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 	source, err := h.findCycleIncludingArchived(scope, e.Request.PathValue("cycle_id"))
@@ -977,18 +977,40 @@ func (h *Handler) labelDistribution(cycleID string) []any {
 	return out
 }
 
-// orIDFilter builds `(col = {:k0} || col = {:k1} …)` and registers the params.
-// An empty list yields an always-false predicate.
-func orIDFilter(column string, ids []string, params dbx.Params) string {
+// orIDFilter builds `(col = {:<prefix>0} || col = {:<prefix>1} …)` and
+// registers the params. An empty list yields an always-false predicate. The
+// prefix keeps multiple uses of the helper in one query from colliding on
+// param names (named params collapse to their last value).
+func orIDFilter(column, prefix string, ids []string, params dbx.Params) string {
 	if len(ids) == 0 {
-		params["none"] = ""
-		return column + " = {:none}"
+		params[prefix+"none"] = ""
+		return column + " = {:" + prefix + "none}"
 	}
 	parts := make([]string, 0, len(ids))
 	for i, id := range ids {
-		key := "f" + strconv.Itoa(i)
+		key := prefix + strconv.Itoa(i)
 		parts = append(parts, column+" = {:"+key+"}")
 		params[key] = id
+	}
+	return "(" + strings.Join(parts, " || ") + ")"
+}
+
+// orValues turns a comma-separated list of literal (non-UUID) values — the wire
+// form of Django's MultipleChoiceFilter — into `(col = {:k0} || col = {:k1} …)`.
+// Blank entries are dropped; an all-blank input yields "" (no predicate).
+func orValues(column, raw string, params dbx.Params) string {
+	parts := make([]string, 0)
+	for _, item := range strings.Split(raw, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		key := "v" + strconv.Itoa(len(parts))
+		parts = append(parts, column+" = {:"+key+"}")
+		params[key] = item
+	}
+	if len(parts) == 0 {
+		return ""
 	}
 	return "(" + strings.Join(parts, " || ") + ")"
 }

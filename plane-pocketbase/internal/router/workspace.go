@@ -31,6 +31,13 @@ func registerWorkspace(e *core.ServeEvent, app core.App) {
 	ws.PATCH("/{$}", h.Update).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleAdmin))
 	ws.DELETE("/{$}", h.Delete).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleAdmin))
 	ws.GET("/members/{$}", h.Members)
+	// Workspace member detail (WorkSpaceMemberViewSet retrieve / partial_update
+	// / destroy — role change and member removal, workspace-ADMIN only). The
+	// GET half was registered alone, so the workspace settings member actions
+	// 404'd.
+	ws.GET("/members/{pk}/{$}", h.MemberDetail)
+	ws.PATCH("/members/{pk}/{$}", h.MemberDetail).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleAdmin))
+	ws.DELETE("/members/{pk}/{$}", h.MemberDetail).BindFunc(middleware.RequireWorkspaceRole(middleware.RoleAdmin))
 
 	// The caller's own membership — the web app's workspace access gate
 	// (`layouts/auth-layout/workspace-wrapper.tsx`).
@@ -43,6 +50,9 @@ func registerWorkspace(e *core.ServeEvent, app core.App) {
 	ws.PATCH("/user-properties/{$}", h.UserProperties)
 	ws.GET("/sidebar-preferences/{$}", h.SidebarPreferences)
 	ws.PATCH("/sidebar-preferences/{$}", h.SidebarPreferences)
+	// Per-key pin toggle (WorkspaceUserPreferenceViewSet.partial_update,
+	// workspace.service.ts updateSidebarPreference).
+	ws.PATCH("/sidebar-preferences/{key}/{$}", h.SidebarPreferenceDetail)
 
 	// Workspace home-page widgets (WorkspaceHomePreferenceViewSet). The list is
 	// GET /home-preferences/; the per-widget PATCH carries the key in the path.

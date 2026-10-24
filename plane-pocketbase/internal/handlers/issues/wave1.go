@@ -330,7 +330,7 @@ func (h *Handler) BulkDelete(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleAdmin {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleAdmin) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 
@@ -532,7 +532,7 @@ func (h *Handler) ArchivedIssues(e *core.RequestEvent) error {
 	if scope == nil || scope.Project == nil {
 		return serializers.NotFound(e, "")
 	}
-	if scope.ProjectRole < middleware.RoleMember {
+	if !middleware.ProjectRoleAtLeast(e, middleware.RoleMember) {
 		return serializers.Forbidden(e, "You do not have permission to perform this action.")
 	}
 

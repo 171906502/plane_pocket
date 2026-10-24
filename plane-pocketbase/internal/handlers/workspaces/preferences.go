@@ -267,6 +267,48 @@ func (h *Handler) SidebarPreferences(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, out)
 }
 
+// SidebarPreferenceDetail serves PATCH /api/workspaces/{slug}/sidebar-preferences/{key}/
+// (WorkspaceUserPreferenceViewSet.partial_update — the sidebar context menu's
+// pin toggle, `workspace.service.ts:390 updateSidebarPreference`). Body:
+// `{is_pinned?, sort_order?}`; the response is the single patched item, not
+// the keyed map the collection route returns. A key the caller has no row for
+// is a plain 404 (ModelViewSet get_object semantics).
+func (h *Handler) SidebarPreferenceDetail(e *core.RequestEvent) error {
+	scope := middleware.ScopeOf(e)
+	if scope == nil || scope.Workspace == nil {
+		return serializers.NotFound(e, "")
+	}
+	user := middleware.CurrentUser(e)
+	if user == nil {
+		return serializers.Unauthorized(e, "Authentication credentials were not provided.")
+	}
+
+	record, _ := h.App.FindFirstRecordByFilter(
+		"workspace_user_preferences",
+		"workspace = {:ws} && user = {:u} && key = {:k} && deleted_at = ''",
+		dbx.Params{"ws": scope.Workspace.Id, "u": user.Id, "k": e.Request.PathValue("key")},
+	)
+	if record == nil {
+		return serializers.NotFound(e, "Not found.")
+	}
+
+	body := map[string]any{}
+	if err := e.BindBody(&body); err != nil {
+		return serializers.BadRequest(e, "Invalid request body.")
+	}
+	if v, ok := body["is_pinned"]; ok {
+		record.Set("is_pinned", v)
+	}
+	if v, ok := body["sort_order"]; ok {
+		record.Set("sort_order", v)
+	}
+	record.Set("updated_by", user.Id)
+	if err := h.App.Save(record); err != nil {
+		return serializers.Validation(e, "is_pinned", err.Error())
+	}
+	return e.JSON(http.StatusOK, serializers.WorkspaceUserPreference(record))
+}
+
 // HomePreferences serves the workspace home-page widget preferences:
 //
 //	GET   /api/workspaces/{slug}/home-preferences/         -> list
