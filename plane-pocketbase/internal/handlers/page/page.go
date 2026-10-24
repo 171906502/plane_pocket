@@ -37,6 +37,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 
+	"github.com/plane-pocketbase/plane-pocketbase/internal/live"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/middleware"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/serializers"
 )
@@ -614,11 +615,20 @@ func (h *Handler) VersionDetail(e *core.RequestEvent) error {
 // It copies the version's stored description back onto the page and answers 204
 // (the web client types `restoreVersion` as `Promise<void>`).
 //
-// Only the text/JSON payload is copied. `description_binary` is a per-record
-// protected file, so the version's stored filename cannot be pointed at from the
-// page record — the collaborative editor rewrites the binary on the next save,
-// which is exactly what the version-restore UI does (`handleRestoreVersion`
-// seeds the editor with `description_html` and lets the editor persist it).
+// The whole payload is copied, `description_binary` included: the version row
+// holds its own protected-file snapshot, so the bytes are read from the
+// version and written back onto the page as a new file (a stored filename
+// cannot be pointed at from another record — see setDescriptionBinary).
+//
+// The page's live log is then purged. The Yjs relay replays its stored CRDT
+// updates on join, which would lay the pre-restore content back over the
+// restored one and make the restore silently do nothing; after the purge the
+// next join re-creates an empty log and seeds it from the page's (just
+// restored) description_binary.
+//
+// The save itself fires the pages update hook, which records a new version for
+// the restored content — upstream behaves the same way, and the write lands in
+// the unwatched page_versions collection, so it stops there (no loop).
 func (h *Handler) RestoreVersion(e *core.RequestEvent) error {
 	scope := middleware.ScopeOf(e)
 	if scope == nil || scope.Project == nil {
@@ -642,10 +652,18 @@ func (h *Handler) RestoreVersion(e *core.RequestEvent) error {
 	page.Set("description_json", version.Get("description_json"))
 	page.Set("description_html", version.GetString("description_html"))
 	page.Set("description_stripped", version.GetString("description_stripped"))
+	if data := h.readBinary(version); len(data) > 0 {
+		if file, err := filesystem.NewFileFromBytes(data, descriptionBinaryName); err == nil {
+			page.Set("description_binary", file)
+		}
+	}
 	page.Set("updated_by", user.Id)
 	if err := h.App.Save(page); err != nil {
 		return serializers.Validation(e, "detail", err.Error())
 	}
+	// The document name the relay keys rooms and logs by is the page's uuid
+	// (internal/live handler.go authorize + store.go openDocLog).
+	live.New(h.App).PurgeDocument(page.GetString("uuid"))
 	return e.NoContent(http.StatusNoContent)
 }
 

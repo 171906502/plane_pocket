@@ -10,11 +10,11 @@ import (
 // `start_date`/`target_date` are DateFields (date-only on the wire) while
 // `created_at`/`updated_at` are full timestamps.
 //
-// Estimate-point aggregates (`*_estimate_points`) are always 0 here: Django
-// reads them from `issue.estimate_point`, but the `issues.estimate_point`
-// relation is outside this vertical slice (see pb_migrations W3 note). The
-// `point` JSON column is not a substitute because it is not tied to an
-// estimate of type "points".
+// Estimate-point aggregates (`*_estimate_points`) are summed from
+// `issue.estimate_point.value` grouped by the issue's state group — see
+// BridgeEstimatePoints for the contract provenance. Only points whose estimate
+// is of type "points" count, so a project using a "categories" estimate reports
+// zeros here (as upstream does).
 //
 // When `detail` is true the ModuleDetailSerializer extras are added:
 // `link_module`, `sub_issues` and the `distribution`/`estimate_distribution`
@@ -24,6 +24,7 @@ func Module(app core.App, r *core.Record, isFavorite, detail bool) map[string]an
 		return nil
 	}
 	counts := bridgeIssueCounts(app, "module_issues", "module", r.Id)
+	estimates := BridgeEstimatePoints(app, "module_issues", "module", r.Id)
 	status := r.GetString("status")
 	if status == "" {
 		status = "planned"
@@ -46,12 +47,12 @@ func Module(app core.App, r *core.Record, isFavorite, detail bool) map[string]an
 		"external_source":           NullableText(r, "external_source"),
 		"external_id":               NullableText(r, "external_id"),
 		"logo_props":                JSONValue(r, "logo_props"),
-		"total_estimate_points":     0,
-		"completed_estimate_points": 0,
-		"backlog_estimate_points":   0,
-		"unstarted_estimate_points": 0,
-		"started_estimate_points":   0,
-		"cancelled_estimate_points": 0,
+		"total_estimate_points":     estimates.Total,
+		"completed_estimate_points": estimates.Completed,
+		"backlog_estimate_points":   estimates.Backlog,
+		"unstarted_estimate_points": estimates.Unstarted,
+		"started_estimate_points":   estimates.Started,
+		"cancelled_estimate_points": estimates.Cancelled,
 		"is_favorite":               isFavorite,
 		"total_issues":              counts.Total,
 		"cancelled_issues":          counts.Cancelled,

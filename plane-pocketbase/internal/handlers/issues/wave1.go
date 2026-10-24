@@ -401,8 +401,8 @@ func (h *Handler) BulkOperation(e *core.RequestEvent) error {
 
 // applyBulkProperties writes one issue's bulk-update properties. Scalar fields
 // are set directly; `assignee_ids`/`label_ids` are added (not replaced) to
-// match the frontend store's merge behaviour. `cycle_id`, `module_ids` and
-// `estimate_point` target collections outside this slice and are ignored.
+// match the frontend store's merge behaviour. `cycle_id` and `module_ids`
+// target collections outside this slice and are ignored.
 func (h *Handler) applyBulkProperties(scope *middleware.Scope, user, issue *core.Record, properties map[string]any) error {
 	if stateUUID := asString(properties["state_id"]); stateUUID != "" {
 		state, _ := serializers.FindByUUID(h.App, "states", stateUUID)
@@ -410,6 +410,15 @@ func (h *Handler) applyBulkProperties(scope *middleware.Scope, user, issue *core
 			return errInvalidState
 		}
 		issue.Set("state", state.Id)
+	}
+	if raw, ok := properties["estimate_point"]; ok {
+		// Same project-scoping rule as the single-issue PATCH: a point from
+		// another project is rejected, not silently dropped.
+		estimatePointID, err := resolveEstimatePoint(h.App, scope.Project.Id, raw)
+		if err != nil {
+			return err
+		}
+		issue.Set("estimate_point", estimatePointID)
 	}
 	for _, field := range []string{"priority", "start_date", "target_date"} {
 		if v, ok := properties[field]; ok {

@@ -3,6 +3,7 @@ package live
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -131,6 +132,40 @@ type awarenessEntry struct {
 	clock uint64
 	state []byte
 	owner *conn
+}
+
+// purgeDocument evicts the room for documentName — when one is open — and
+// removes its log and sidecars from disk. Called by Handler.PurgeDocument
+// (the page-restore path): the relay must not replay the pre-restore updates
+// over the restored content.
+//
+// Lock order is hub → room, taken in two separate critical sections (the map
+// entry is removed under hub.mu, the room is closed under its own mu
+// afterwards). Taking them nested would deadlock against evict(), which runs
+// from the idle timer holding room.mu and reaching for hub.mu.
+func (h *Hub) purgeDocument(documentName string) {
+	h.mu.Lock()
+	r, open := h.rooms[documentName]
+	if open {
+		delete(h.rooms, documentName)
+	}
+	h.mu.Unlock()
+
+	if open {
+		r.mu.Lock()
+		if r.log != nil {
+			if err := r.log.close(); err != nil {
+				log.Printf("[live] %s: purge close failed: %v", documentName, err)
+			}
+		}
+		r.updates = nil
+		r.mu.Unlock()
+	}
+
+	// Same suffix set as removeLogFiles: the log itself plus the `.name`
+	// sidecar and the `.bak` compaction backup.
+	removeLogFiles(filepath.Join(h.dir, safeFileName(documentName)+".log"))
+	log.Printf("[live] %s: purged (restore)", documentName)
 }
 
 // room is one document: its connections, its history, and who is present.

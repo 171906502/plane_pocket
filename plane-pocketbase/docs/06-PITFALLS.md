@@ -1639,6 +1639,160 @@ done
 
 ---
 
+### D-12 ⭐⭐⭐ PocketBase 记录钩子的三条前提（做 L-1 前实测，后续所有钩子照此办）
+
+**背景**：L-1 首次引入 `app.OnRecordAfterCreateSuccess` / `OnRecordAfterUpdateSuccess`（`internal/hooks/`）。
+挂之前有三个"想当然"必须实测，结论都与直觉有出入。探针固化在
+`internal/hooks/premises_test.go`（`go test ./internal/hooks/ -run TestProbe -v`）。
+
+**① 内部 `app.Save()` 照样触发钩子（不是只对 HTTP 请求生效）**
+
+`BaseApp.Save()` → `create()/update()` 直接 `Trigger(OnModelAfterCreateSuccess…)`，
+`record_model.go` 的系统钩子再把它代理成 `OnRecordAfter*Success` ——
+**跟有没有 HTTP 请求无关**。本项目所有跨表写入本来就是 handler 里的 `app.Save()`，
+所以钩子对每一条写入路径都生效（这正是想要的效果），但也意味着
+**钩子里不能再 Save 被监听的 collection**（会递归）。实测：钩子里 Save 一条
+`issue_activities`（未被监听）→ 钩子只为这条新记录多触发一次即停止，**无需防重入**。
+
+**② `Original()` 有旧值的前提是"记录从 DB 加载过"**
+
+`originalData` 只在 `PostScan()` / finder 加载时填充。`core.NewRecord()` 建的记录，
+`originalData` 是**字段默认值（空白）**——哪怕紧接着 `app.Save()` 成功，钩子里
+`Original()` 拿到的还是空白，不是刚写进去的那行。实测踩到过：探针第一版直接用
+seeder 返回的内存对象 Save，`Original().name == ""`。**handler 都是
+`FindByUUID → Set → Save`（先加载后改），所以正式路径没问题**；但任何
+"新建后立刻再改"的路径想 diff 旧值，必须先 `FindRecordById` 重新加载。
+
+**③ 钩子返回 error 会让主保存失败——而且行已经写进去了**
+
+`create()/update()` 里 `OnModelAfter*Success` 的 error 被 `return err` 原样带出
+`app.Save()`。也就是说：DB 行**已经写成功**，钩子再报错，HTTP 层拿到的是 500。
+派生数据（活动流/通知/版本）写失败**必须吞掉只记日志**
+（`e.App.Logger().Error(...)` + `return nil`），绝不能让"写活动失败"把
+"存 issue"搞成假失败。另外 `RunInTransaction` 里的保存，after-success 触发被
+`txInfo.OnComplete` **推迟到事务提交后**，且 `event.App` 已被换成父 app ——
+钩子里一律用 `e.App`，不要用闭包捕获的 app 引用。
+
+### D-13 ⭐⭐ 估算体系：UI 全部门控在 `projects.estimate` 上，字段缺失 = 功能不存在
+
+**现象**：`issues.estimate_point` 加好了、周期/模块聚合也真的算出来了，API 探针全绿，
+**但浏览器里看不到任何估算 UI** —— Issue 侧栏没有 Estimate 行，周期详情的估算类型
+下拉点不动。
+
+**根因**：`projects` 集合**没有 `estimate` 字段**。上游迁移
+`pb_migrations/1759000001_init_identity_workspace_project.go:275` 注释
+"estimate deferred — `estimates` is outside this slice"，之后一直没补。而前端把**所有**
+估算入口都门控在这一个字段上：
+
+- `components/issues/issue-detail/sidebar.tsx:180`
+  `{projectId && areEstimateEnabledByProjectId(projectId) && (…Estimate 行…)}`
+  —— 为空时整行不渲染；
+- `store/cycle.store.ts` 的 `getEstimateTypeByCycleId` 在 `project.estimate` 为假时
+  **硬返回 `"issues"`**，下拉切不到 Estimates；
+- 后端 `serializers/projects.go` 不输出、`handlers/projects/projects.go` 的 Update
+  白名单也不含它 —— `PATCH {"estimate":"<id>"}` 返回 **200 但被静默丢弃**。
+
+**正确做法**：迁移加 `projects.estimate`（relation → `estimates`，可空 SET_NULL）
++ 序列化器输出平铺 uuid + Update 白名单放行并校验同项目归属。前端**零改动**。
+见 `docs/10-REMAINING-WORK.md` §3.9（L-11）。
+
+**附带教训**：一个被 defer 的字段可以让**整条 UI 路径不可达**，而 API 层自测全绿。
+凡"前端有入口、后端没字段"的组合，验收必须走到浏览器，不能停在 curl。
+
+---
+
+### D-14 ⭐ 估算相关接口的四个反直觉点
+
+1. **`POST …/estimates/` 要嵌套 body**：
+   `{"estimate":{"name":"fib","type":"points"},"estimate_points":[{"key":1,"value":"1"}]}`。
+   发扁平的 `{"name":…,"type":"points"}` **会被静默忽略** —— name 变成随机串、
+   type 落默认 `categories`。而 `categories` 类型的点**不计入任何**
+   `*_estimate_points` 聚合（上游同规则：只算 `type='points'`）。探针时表现为
+   "明明挂了点，聚合却是 0"。
+2. **`estimate.go` 的 Create 默认 `type="categories"`**：不显式传 `"type":"points"`
+   建出来的体系，其点在任何聚合里都不见。
+3. **前端只认 `last_used=true` 的估算为项目"活跃"体系**：用裸 API 建估算不带
+   `last_used` 时，即使 `project.estimate` 已挂上，Issue 侧栏选中值仍显示 "None"
+   （选点显示走 `currentActiveEstimateIdByProjectId` → last_used 估算）。
+   上游前端建估算时本来就发 `last_used: true`。
+4. **周期图例文字是 "Current Points"/"Ideal Points"**（`t("points")`="Points"），
+   不是 "Current Estimates"；只有**下拉选项**的标签才是 "Estimates"。
+   写验收预期时别搞错，否则会误判成没实现。
+
+---
+
+### D-15 ⭐ 测试里永远不要对响应体做字符串搜 id
+
+`e.JSON` 序列化 Go map 的 **key 顺序不固定**。用 `strings.Contains(body, ""id":"…"")`
+这类写法，可能命中 `points` 数组里某个点的 id 而不是 estimate 自己的 id
+（estimate 的 id 排在后面），测试会**偶发 flaky**（实测 6 次挂 1 次）。
+一律 `json.Unmarshal` 后按字段取。
+
+---
+
+### D-16 ⭐⭐ 通知生成的四个"字段写错就等于没写"
+
+`internal/handlers/notification/notification.go` 的**消费端过滤器**决定了哪些
+通知在收件箱里可见，写错一个字段这一行就**不存在**（L-4 实测固化）：
+
+1. **`entity_name` 必须字面 `"issue"`** —— `List` 的过滤器是
+   `entity_name = 'issue'`，写 "Issue" / "work_item" 都直接不可见。
+2. **`sender` 是纯文本列（必填，≤255），不是 relation** —— 且 mention 类通知的
+   `sender` 必须**字面包含子串 `mentioned`**：`?mentioned=true` 用
+   `sender ~ 'mentioned'`，未读数的 mention/非 mention 拆分也靠它，序列化器的
+   `is_mentioned_notification` 同样 `strings.Contains(sender, "mentioned")`。
+3. **`entity_identifier` 是 issue 的 Plane UUID，不是 PocketBase 记录 id** ——
+   序列化器原样吐出、前端拿它跳转；`type=assigned/created/subscribed` 的过滤
+   分支也是拿它和 `issues.uuid` 对。
+4. **`triggered_by` 才是 actor 的 relation**（用户 id），别把触发种类写进去、
+   也别把用户 uuid 写进 `sender`。
+
+**推论**：任何新增通知类型先读一遍 `notification.go` 的三个过滤器
+（List / UnreadCount / serializer），再决定 `sender`/`entity_*` 怎么写。
+
+---
+
+### D-17 ⭐⭐ 通知是扇出写：三层防线缺一不可
+
+一个动作 N 个接收者（一条评论 → 全体订阅者；批量改 200 个 issue → 200×N）。
+L-4 的三层防线，各自防一种爆炸，**互相不可替代**：
+
+1. **DB 插入前 5 分钟去重**（同 receiver + entity_identifier + sender）——
+   必须是**查询**而不是内存缓存：要跨重启、要覆盖不是本进程发起的写入。
+   实测坑：只靠它挡不住"批量操作改 200 个不同 issue"（entity 不同，查询全过）。
+2. **5s 合并窗口**（同 actor + receiver + kind，`commitBulk` 思路）—— 防的正是
+   上面那种批量扇出：200 个 issue 只留第一条。注意它挡不住"5 秒后第二次人类
+   操作"，那是去重层的事。
+3. **每次 save 扇出上限**（L-4 定 50）—— 防单条记录的接收者本身就很多
+   （200 个订阅者的一条评论）。超限**丢 + 记日志**：丢一条通知远好过让用户
+   的保存变慢/失败（派生数据错误绝不能影响主保存，见 D-12 ③）。
+
+另一个易翻点：**钩子写 `notifications` / `issue_mentions` 是"写未被监听的
+collection"**（D-12①：只会为新记录多触发一次即停止，无需防重入）——但
+`issue_mentions` 有 partial UNIQUE `(issue, mention) WHERE deleted_at = ''`，
+**必须先查后写**，否则重复提及直接 UNIQUE 报错。
+
+### D-18 ⭐⭐ 版本恢复必须同时清 live 日志，且要摘得到"正在服务的那个 hub"
+
+L-3 恢复页面版本时两个连在一起的坑：
+
+1. **只写回 `description_binary` 不够，还要删 `<data>/live/<sanitised>-<hash>.log`**
+   （连 `.name` / `.bak` 边文件）。Yjs 中继在 join 时把日志里的 CRDT 更新**按序回放**，
+   会把恢复前的内容盖回去 —— 恢复"看起来没发生"。删了日志，下次 join 走
+   `seedFromStoredBinary`，用刚恢复的 `description_binary` 重新 seed，才对得上。
+2. **REST 代码要够到 socket 正在用的 hub，不能自己 `New` 一个**。`live.New(app)`
+   原来每次调用都建新 `Hub`：恢复路径新建的 hub 里没有那个 room，既摘不掉内存更新，
+   Windows 上还因为原 hub 仍持打开句柄而连删文件都会失败。修法：`New` 按 app
+   记忆化（sync.Map），恢复路径 `live.New(app).PurgeDocument(uuid)` 落到同一个 hub。
+   purge 内部 **hub.mu → room.mu 必须分两段**（先摘 map 再锁 room）：`evict()` 是
+   room.mu → hub.mu，嵌套持锁会死锁。
+
+附带一条（D-12 的衍生）：恢复本身就是一次 `pages` update，会再触发版本钩子、
+**有意**再记一版（上游同语义）；因为版本写在未被监听的 `page_versions`，
+链条到那里就停，不会循环。
+
+---
+
 ## E 类 · 测试链路
 
 ### E-1 ⭐ 不要把"起服务"和"跑测试"分成两个工具调用
@@ -1816,6 +1970,12 @@ mv X "X.bak-$(date +%s)" && mkdir -p X
 | **单端口部署（不跑 live）一进 Pages 编辑器就卡死** | **D-9**（2026-10-23 起由 `internal/live` 根治） |
 | **编辑器能开、能敲，但页面正文是空的（探针自测时）** | **D-11 ①**（`Y.Text` vs `Y.XmlFragment` 同名冲突，清脏日志重测） |
 | **页面正文搜不到 / Space 发布后是空白** | **D-11 ③④**（`description_stripped` 未派生、`description_html` 空串被折叠成 undefined） |
+| **钩子没触发 / 递归 / 主保存被派生数据写失败搞成 500** | **D-12**（内部 `app.Save()` 也触发钩子；`Original()` 要先加载；error 要吞） |
+| **写了通知但收件箱/未读数就是看不到** | **D-16**（`entity_name`/`sender` 含 `mentioned`/`entity_identifier` 是 Plane UUID/`triggered_by` 才是 actor） |
+| **批量操作给每个人刷出几百条通知** | **D-17**（5 分钟去重 + 5s 合并 + 每次 save 扇出上限，三层缺一不可） |
+| **重复提及报 UNIQUE 错** | **D-17**（`issue_mentions` 有 partial UNIQUE，必须先查后写） |
+| **恢复版本后内容"变回去了"（中继回放盖掉恢复结果）** | **D-18**（恢复必须清 live 日志；`live.New` 要按 app 记忆化才摘得到正在服务的 hub） |
+| **钩子里 `Original()` 全是空白** | **D-12 ②**（记录是 `NewRecord` 造的，没从 DB 加载过） |
 | **加了 gzip 后：接口 500 响应前半截是 200 body / 前端 JSON.parse 失败** | **C-18**（错误路径要 `Discard()` 缓冲区） |
 | **压缩后客户端卡住或只读到原文件长度** | **C-18**（必须删 `Content-Length` / `Accept-Ranges`） |
 | **`/api/realtime` 不推事件了 / 视频 Range 播放坏了** | **C-18**（跳过 SSE 与 `Range`） |

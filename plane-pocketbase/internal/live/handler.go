@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -23,11 +24,21 @@ type Handler struct {
 	upgrader websocket.Upgrader
 }
 
+// hubs memoises the handler per app. live.New runs once per serve, and REST
+// code (the page-restore path, see Handler.PurgeDocument) reaches the same hub
+// through New — a second hub would evict nothing and could not even remove the
+// log file out from under the socket's open handle on Windows.
+var hubs sync.Map // core.App -> *Handler
+
 // New builds the collaboration handler. Document logs live in
 // `<data dir>/live/`, next to the SQLite database, so a backup of the data
-// directory captures page content too.
+// directory captures page content too. It is idempotent per app: the first
+// call builds the hub, later calls return the same handler.
 func New(app core.App) *Handler {
-	return &Handler{
+	if existing, ok := hubs.Load(app); ok {
+		return existing.(*Handler)
+	}
+	h := &Handler{
 		app: app,
 		hub: NewHub(app, filepath.Join(app.DataDir(), "live")),
 		upgrader: websocket.Upgrader{
@@ -41,11 +52,24 @@ func New(app core.App) *Handler {
 			CheckOrigin: func(*http.Request) bool { return true },
 		},
 	}
+	hubs.Store(app, h)
+	return h
 }
 
 // CollectOrphans removes collaboration logs whose page is gone (see
 // Hub.CollectOrphans). Called once at startup.
 func (h *Handler) CollectOrphans() int { return h.hub.CollectOrphans() }
+
+// PurgeDocument drops one document's collaboration log: the in-memory room is
+// evicted (its file handle closed) and the log plus its sidecars are removed
+// from disk. The page-restore path calls it with the page's uuid, because the
+// Yjs relay would otherwise replay the pre-restore CRDT updates on top of the
+// restored content and the restore would silently appear to do nothing. The
+// next join re-creates an empty log, which seedFromStoredBinary fills from the
+// page's just-restored description_binary.
+func (h *Handler) PurgeDocument(documentName string) {
+	h.hub.purgeDocument(documentName)
+}
 
 // Serve upgrades the request and runs the connection until it closes.
 func (h *Handler) Serve(e *core.RequestEvent) error {

@@ -56,3 +56,7 @@ tests/__pycache__/
 .scratch/
 
 tests/logs/*.bak
+
+# Playwright CLI 会话状态（探针残留）
+.playwright-cli/
+playwright-cli.json

@@ -584,6 +584,209 @@ go test ./internal/live/ -v        # 10 passed
 
 ---
 
+### 3.7 L-1 工作项活动流（2026-10-24）：第一次引入记录钩子
+
+`issue_activities` 有 4 处读、0 处写，是"接口在、数据永远空"的典型。根因是全仓
+**0 个 `OnRecord*` 钩子**，所有跨表写入都手写在 handler 里。本轮把这条通道建起来。
+
+**三条钩子前提（动手前先探针固化，结论写在 `06-PITFALLS.md` D-12）**
+
+1. 内部 `app.Save()` **会**触发 `OnRecordAfterCreateSuccess` / `OnRecordAfterUpdateSuccess`
+   （模型级钩子，与 HTTP 无关）→ 钩子里不能 Save 被监听的 collection；写未被监听的
+   `issue_activities` 只会为新记录多触发一次即停止，**无需防重入**。
+2. `record.Original()` **可读旧值，但有前提**：只有从 DB 加载过的记录才有。用
+   `core.NewRecord` 造的对象直接 Save，`Original()` 是空白默认值。真实 handler 都是
+   `FindByUUID → Set → Save`，正式路径没问题。
+3. **钩子返回 error 会让主保存失败，且行已经写进去了** → 派生数据错误必须吞掉只记日志。
+
+**实现**：新包 `internal/hooks/`（`hooks.go` 注册 + `contain()` 外壳吞 panic/error；
+`activity.go` 做 diff），`internal/router/router.go` 只加一行 `hooks.Register(app)`。
+issues 白名单字段 diff、`issue_comments`（`verb=comment`）、`issue_relations`（上下游双侧）、
+assignee/label/cycle/module 桥表；关联对象单条 `FindRecordById` 解析名字填
+`old_identifier`/`new_identifier`；批量更新 5s 窗口合并成一条。
+
+**验收（主 agent 用新二进制 + 真 curl 独立复跑）**
+
+- `PATCH {"state_id":…}` → `GET …/history/` 得
+  `{"verb":"updated","field":"state","old_value":"Backlog","new_value":"Cancelled", …}`
+- 挂估算点 → `{"field":"estimate_point","old_value":null,"new_value":"5"}`
+- 批量更新 3 个 issue → 只 1 条汇总（1/0/0）
+- 反向：注释掉 `hooks.Register(app)` → `wiring_test` FAIL → 还原 PASS
+- 浏览器：Activity 页签 DOM 原文 `Wilber set the state to In Progress.` /
+  `Wilber set the estimate point to 5.` / `added this work item to the cycle Sprint 1`
+  （截图 `tests/evidence/screenshots/L1-activity-tab.png`）
+
+**已知限制**：assignee/label 的"移除"不产生活动（handler 走 `app.Delete` 硬删除，
+超出 AfterCreate/AfterUpdate 的观察范围）；批量汇总活动锚定在批内第一个 issue 上。
+
+---
+
+### 3.8 L-2 估算点（2026-10-24）：`issues.estimate_point` + 真实聚合
+
+周期/模块卡片的「估算」此前**恒 0**：`issues` 没有 `estimate_point` 列，
+`wave1.go:405` 注释直接写着"被忽略"，`cycle.go:604-609` 六个 `*_estimate_points` 硬编码 0。
+
+**实现**
+
+- 迁移 `1759000014_issue_estimate_point.go`：加 `estimate_point`（relation → `estimate_points`，
+  可空，SET_NULL），带字段存在性守卫保证重跑 no-op。
+- `internal/handlers/issues/issues.go` 的 `resolveEstimatePoint`：校验属于同一 project，
+  否则上游原文错误；缺键 / `null` / `""` → 清除（前端清空时发 `null`）。
+- `wave1.go` 的 `applyBulkProperties` 加入该字段，删掉过时的"被忽略"注释。
+- `internal/serializers/cycle.go` 新增 `BridgeEstimatePoints`：按 `state.group` 聚合
+  `CAST(ep.value AS REAL)`，**只算 `estimates.type='points'`**，issue 群体与
+  `bridgeIssueCounts` 完全一致；`module.go` 六个字段改真实值。
+- `cycle.go` 的 analytics 读 `?type=`，`type=points` 返回 assignees/labels 的
+  `total/completed/pending_estimates` + 按点燃尽图（未来日 `null`）。
+- `serializers/issues.go` 输出**平铺 UUID**（对齐前端 `TIssue.estimate_point` 与上游 app serializer）。
+
+**验收（主 agent 独立复跑，含手工 Σ 对照）**
+
+- 迁移幂等：`Applied` → 再跑 `No new migrations to apply`
+- 挂 value=5 的点到 1 个 cancelled 状态的 issue → `cancelled_estimate_points=5`、
+  `total_estimate_points=5`，与手工计算逐字段一致
+- `analytics/?type=points`：`completion_chart` 过去日 5、未来日 `null`
+- 跨项目引用：`400 {"error":"Estimate point is not valid please pass a valid estimate_point_id"}`，
+  原值未被污染
+- 反向：聚合改回恒 0 → 3 个测试 FAIL；`projectHasPointsEstimate` 改恒 false → 退化分布测试 FAIL
+
+**踩到的坑（探针写法，非缺陷）**：`POST …/estimates/` 要的是**嵌套** body
+`{"estimate":{…},"estimate_points":[…]}`，发扁平 body 会被静默忽略 → name 变随机串、
+type 落默认 `categories`，而 `categories` 不计入任何聚合。第一次探针全 0 就是这个原因。
+
+---
+
+### 3.9 L-11 `projects.estimate`（2026-10-24）：浏览器验收逼出来的缺口
+
+L-2 的 API 层自测全绿，但**浏览器验收发现用户根本看不到估算 UI**。这不是 L-2 的问题，
+是一个被 defer 掉的字段把整条 UI 路径堵死了：
+
+- `projects` 集合**没有 `estimate` 字段**（上游迁移 `1759000001:275` 注释
+  "estimate deferred — `estimates` is outside this slice"，之后再未补上）；
+- 前端 `sidebar.tsx:180` 把 Estimate 行门控在 `areEstimateEnabledByProjectId(projectId)` 上，
+  `project.estimate` 为空时**整行不渲染**；
+- `cycle.store.ts` 的 `getEstimateTypeByCycleId` 在 `project.estimate` 为假时**硬返回
+  `"issues"`**，周期详情页的估算类型下拉点不动；
+- `serializers/projects.go` 不输出、`handlers/projects/projects.go` 的 Update 白名单
+  也不含 `estimate`（PATCH 返回 200 但静默丢弃）。
+
+**实现**
+
+- 迁移 `1759000015_project_estimate.go`：加 `estimate`（relation → `estimates`，可空，SET_NULL），
+  带存在性守卫。
+- `serializers/projects.go` 输出平铺 uuid（`PartialProject` 不加，上游 `ProjectListSerializer`
+  的投影里也没有）。
+- `handlers/projects/projects.go` Update 放行 `estimate`，校验属于同一 project。
+- `handlers/estimate/estimate.go` 的 Create：事务内 `attachEstimateIfUnset`，项目当前没有
+  estimate 时把新建的挂上（**本地对齐决策**，上游不自动挂，靠设置页开关；差异已写进注释和测试）。
+- 前端零改动。
+
+**验收（主 agent 独立复跑 + 浏览器 DOM）**
+
+- 基线 `project.estimate = None` → 建 points 估算后**自动回写**为该估算 id
+- 第二个估算**不覆盖**已有值
+- `PATCH {"estimate":"<另一个>"}` → 200，读回生效
+- 跨项目 → `400 {"error":"Estimate is not valid please pass a valid estimate_id"}`
+- 浏览器：Properties 侧栏 DOM 出现 `Estimate` 行 + `aria-label="Estimates, 5"`；
+  Cycle 详情下拉 `["Work items","Estimates"]` 可切，图例 `Current Points / Ideal Points`，
+  `header: Points 2/7`、`Started 71% of 7`、`Completed 29% of 7` —— 与 API 的
+  `total_estimate_points=7 / started=5 / completed=2` 逐项一致
+- 反向：`PATCH {"estimate":null}` → 硬刷新 → Estimate 行从 DOM 消失（截图 L11-c）
+
+### 3.10 L-3 版本历史（2026-10-24）：`page_versions` + `issue_description_versions` 的生产端
+
+页面 `⋯ → Version history` 与工作项「描述历史」三个读接口都在（`page.VersionsList` /
+`VersionDetail` / `RestoreVersion`、`intake/wave2.go`、`issues/wave2.go`），但**没有任何
+写入路径** —— 版本历史永远空，`RestoreVersion` 也只搬得动文本，搬不动 yjs 二进制。
+本轮把生产端建起来，仍挂在 L-1 引入的记录钩子上（`internal/hooks/`，D-12 三条前提直接复用，
+`contain()` 外壳原样复用）。
+
+**实现**
+
+- `internal/hooks/version.go`（新）：监听 `pages` / `issues` 的 create+update。
+  - `description_html` 与 `record.Original()` 相同 → 不记（改名、改属性、同值重存都不产版本；
+    新建时空正文不产、有正文产第一条）。
+  - **600s 同用户合并窗口**（上游 `PAGE_VERSION_TASK_TIMEOUT`）：取该页/该 issue 最新一行，
+    `owned_by == actor` 且 `last_saved_at` 距今 ≤ 600s → 原地刷新（html/json/stripped/binary/
+    `last_saved_at`），否则插入。协作编辑 1.5s 一次 PATCH，没有这条 20 条上限 30 秒就会烧穿。
+  - **上限 20**：仅插入后检查，超限按 `last_saved_at` 升序 `app.Delete` 硬删
+    （PocketBase 的 `__pbFilesManagerDelete__` 会连带删掉版本行的文件）。
+  - `description_binary` 是 protected file 字段：源记录字节经 `app.NewFilesystem()` 读出，
+    以 `filesystem.NewFileFromBytes` 写入版本行 —— 直接赋文件名/字节会验证失败（PITFALLS 里
+    `description_binary` 老坑的同款）。
+  - `issue_description_versions` 的 `project` / `workspace` 从 issue 记录解析（两列均 required）。
+- `internal/handlers/page/page.go`（只动恢复路径）：`RestoreVersion` 补 binary 回写
+  （版本行字节 → 页面新文件），保存后清该页 live 日志。
+- `internal/live`（唯一导出新增）：`(*Handler).PurgeDocument(documentName)` 按
+  `store.go safeFileName` 定位日志，先摘内存 room 并关文件句柄（hub.mu→room.mu 分两段，
+  避开与 `evict` 的死锁），再删 `.log`/`.name`/`.bak`。`New` 改为按 app 记忆化 ——
+  否则恢复路径新建的 hub 摘不掉 socket 正在服务的 room，Windows 上连删文件都会因句柄未关失败。
+- 不清 live 日志的后果：Yjs 中继在 join 时回放旧 CRDT 更新，把恢复前的内容盖回去，
+  恢复"看起来没发生"。
+
+**验收（`go test -count=1 ./...` 31 包全 ok）**：合并窗口（含 600s/601s 边界表驱动）、
+25 用户 25 次保存恒 20 行且幸存者为最新 20 条、不相关编辑 0 版本、恢复写回含 binary、
+恢复后 live 日志三件套消失、30 次连打合并成 1 行（防重入 + 不误触上限）。
+逐条反向验证表见 `11-TASKLIST.md` L-3 卡片。
+
+---
+
+### 3.11 L-4 通知生成（2026-10-24）：`notifications` + `issue_mentions` 从零到有
+
+收件箱永远空：`internal/router/notification.go` 只有消费端（list / detail /
+mark-read / unread-count / preferences），**没有任何写入路径** insert 过
+`notifications`；`issue_mentions` 全仓 0 引用（审计 `NO-REF` 桶）。本轮把生产端
+建起来，挂在 L-1 已引入的记录钩子上（`internal/hooks/`，D-12 三条前提直接复用）。
+
+**实现**
+
+- `internal/hooks/notify.go`（新）：写入主路径 + 四条守卫 —— 不通知自己、
+  `user_notification_preferences` 门控（缺行 = 默认全开，对齐 handler 的惰性
+  种子）、**插入前查询**的 5 分钟去重（同 receiver + entity + kind）、5s
+  合并窗口（同 L-1 `commitBulk` 思路）；**每次 save 扇出上限 50**。
+  `sender` 写触发种类（`assigned`/`mentioned`/`commented`），`mentioned`
+  字面包含消费端 `sender ~ 'mentioned'` 的子串；`entity_name="issue"`；
+  `entity_identifier` 写 issue 的 **Plane UUID**（不是 PocketBase 记录 id）。
+- `internal/hooks/notify_mentions.go`（新）：`<mention-component
+  entity_name="user_mention" entity_identifier="<用户 uuid>">` 解析（只认
+  user_mention、按用户去重）；`issue_mentions` 簿记先查后写（吃 partial
+  UNIQUE `(issue, mention)`，重存同 html 零新增）；三个触发点：
+  `assigned`（`issue_assignees` 创建）、`commented`（`issue_comments` 创建 →
+  订阅者，**无订阅者行时回退 assignees + creator**）、`mentioned`（issue 描述与
+  评论，create/update 都走 `Original()` diff，只通知**新增**提及）。
+- `internal/hooks/hooks.go`：两个 switch 各加用例，全包在既有 `contain()` 里。
+- `docs/06-PITFALLS.md`：追加 **D-16**（通知字段写错=没写的四个点）与 **D-17**（扇出写三层防线）。
+
+**三个产品判断（代码注释里都有）**
+
+1. `assigned` 上游**没有专属偏好列** → 门控在 `property_change`（兜底列），
+   默认全开保持上游行为。
+2. 扇出三层防线：每次 save 上限 50 行 / 同 (actor, receiver, kind) 5s 合并 /
+   DB 5 分钟去重（重启不丢）。
+3. 评论接收者有订阅者行就只发订阅者（排除评论者）；完全没有订阅行才回退
+   assignees + creator——订阅只能从显式 subscribe 端点产生，新 issue 通常没有。
+
+**验收（`go test -count=1 ./internal/hooks/` 全绿，11 条新测试）**
+
+- A 分配 issue 给 B → B 未读数 0 → 1（UnreadCount 过滤器逐字复刻），行里
+  `entity_name="issue"`、`sender="assigned"`、`title`/`message_html` 非空、
+  `entity_identifier` = issue Plane UUID
+- 两个 mention 标签 → 2 行 `issue_mentions` + 2 条 `sender` 含 `mentioned`
+  的通知；**重存同 html 零新增**；重复标签按用户去重、非 user_mention 被忽略
+- 自动作 0 行；5 分钟内重复动作 0 第二行（含"换个人再评论"隔离去重的用例）；
+  `mention`/`comment`/`property_change` 关闭各 0 行；缺偏好行默认全开
+- 扇出：一条评论 200 订阅者 → 恰好 50 行；批量分配同一人到 200 个 issue → 1 条
+- 反向验证：`hooks.go` 去掉对应注册、`notify.go` 去掉四条守卫各会让对应测试
+  FAIL（逐条清单在 `docs/11-TASKLIST.md` L-4 的验收表）
+
+**已知限制**：assignee "移除"不通知（handler 走 `app.Delete`，钩子观察不到，
+同 L-1）；5s 合并窗口内同一人对同类触发只留第一条；`state_change` /
+`issue_completed` / `property_change` 三类通知按最小闭环要求留 TODO。
+
+---
+
+---
+
 ## 4. 验收流程（我方执行）
 
 每个任务交付后，我按以下顺序独立复核，**不采信 agent 的自述**：

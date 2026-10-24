@@ -142,6 +142,75 @@ func bridgeIssueCounts(app core.App, bridge, fk, id string) issueCounts {
 	}
 }
 
+// EstimatePoints is the state-group breakdown of a cycle/module's estimate
+// points, mirroring Django's annotated `*_estimate_points` fields
+// (CycleProgressEndpoint, apps/api/plane/app/views/cycle/base.py:664-711;
+// ModuleViewSet, apps/api/plane/app/views/module/base.py:145-277).
+type EstimatePoints struct {
+	Backlog   float64
+	Unstarted float64
+	Started   float64
+	Cancelled float64
+	Completed float64
+	Total     float64
+}
+
+// BridgeEstimatePoints sums `estimate_point.value` (cast to float, as Django's
+// `Cast("estimate_point__value", FloatField())` does) over the issues linked to
+// a cycle/module through its bridge table, broken down by the issue's state
+// group. It is the real replacement for the hardcoded zeros the L-2 task card
+// records (docs/11-TASKLIST.md §3 L-2).
+//
+// Three contract details, all taken verbatim from the upstream queries:
+//
+//   - Only points whose estimate is of type "points" count
+//     (`estimate_point__estimate__type="points"`): a "categories" estimate
+//     (t-shirt sizes) contributes nothing to the aggregates, upstream and here.
+//   - The issue population is exactly bridgeIssueCounts' — soft-deleted bridge
+//     rows and soft-deleted/archived/draft issues are excluded — so the point
+//     sums always cover the same issues the *_issues counts report.
+//   - `value` is a text column (Django CharField); CAST yields 0.0 for
+//     non-numeric values, matching SQLite's CAST semantics.
+func BridgeEstimatePoints(app core.App, bridge, fk, id string) EstimatePoints {
+	var row struct {
+		Backlog   float64 `db:"backlog"`
+		Unstarted float64 `db:"unstarted"`
+		Started   float64 `db:"started"`
+		Cancelled float64 `db:"cancelled"`
+		Completed float64 `db:"completed"`
+		Total     float64 `db:"total"`
+	}
+	query := `
+		SELECT
+			COALESCE(SUM(CASE WHEN s."group" = 'backlog' THEN CAST(ep.value AS REAL) ELSE 0 END), 0) AS backlog,
+			COALESCE(SUM(CASE WHEN s."group" = 'unstarted' THEN CAST(ep.value AS REAL) ELSE 0 END), 0) AS unstarted,
+			COALESCE(SUM(CASE WHEN s."group" = 'started' THEN CAST(ep.value AS REAL) ELSE 0 END), 0) AS started,
+			COALESCE(SUM(CASE WHEN s."group" = 'cancelled' THEN CAST(ep.value AS REAL) ELSE 0 END), 0) AS cancelled,
+			COALESCE(SUM(CASE WHEN s."group" = 'completed' THEN CAST(ep.value AS REAL) ELSE 0 END), 0) AS completed,
+			COALESCE(SUM(CAST(ep.value AS REAL)), 0) AS total
+		FROM ` + bridge + ` b
+		JOIN issues i ON i.id = b.issue
+		LEFT JOIN states s ON s.id = i.state
+		JOIN estimate_points ep ON ep.id = i.estimate_point
+		JOIN estimates e ON e.id = ep.estimate AND e.type = 'points'
+		WHERE b.` + fk + ` = {:id}
+			AND b.deleted_at = ''
+			AND i.deleted_at = ''
+			AND i.archived_at = ''
+			AND i.is_draft = 0`
+	if err := app.DB().NewQuery(query).Bind(dbx.Params{"id": id}).One(&row); err != nil {
+		return EstimatePoints{}
+	}
+	return EstimatePoints{
+		Backlog:   row.Backlog,
+		Unstarted: row.Unstarted,
+		Started:   row.Started,
+		Cancelled: row.Cancelled,
+		Completed: row.Completed,
+		Total:     row.Total,
+	}
+}
+
 // CycleStatus exposes the computed cycle status (CURRENT/UPCOMING/COMPLETED/
 // DRAFT) so handlers can filter on it (e.g. `?cycle_view=current`).
 func CycleStatus(r *core.Record) string { return cycleStatus(r) }

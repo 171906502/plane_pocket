@@ -227,6 +227,11 @@ func (h *Handler) Create(e *core.RequestEvent) error {
 			issue.Set("state", stateID)
 		}
 		issue.Set("priority", defaultPriority(asString(body["priority"])))
+		estimatePointID, err := resolveEstimatePoint(txApp, project.Id, body["estimate_point"])
+		if err != nil {
+			return err
+		}
+		issue.Set("estimate_point", estimatePointID)
 		for _, field := range []string{"description_html", "description_json", "external_source", "external_id", "is_draft", "start_date", "target_date", "completed_at", "archived_at", "point"} {
 			if v, ok := body[field]; ok {
 				issue.Set(field, v)
@@ -309,6 +314,13 @@ func (h *Handler) Update(e *core.RequestEvent) error {
 			return e.JSON(http.StatusBadRequest, map[string]any{"error": "State is not valid please pass a valid state_id"})
 		}
 		issue.Set("state", state.Id)
+	}
+	if raw, ok := body["estimate_point"]; ok {
+		estimatePointID, err := resolveEstimatePoint(h.App, scope.Project.Id, raw)
+		if err != nil {
+			return e.JSON(http.StatusBadRequest, map[string]any{"error": err.Error()})
+		}
+		issue.Set("estimate_point", estimatePointID)
 	}
 	for _, field := range []string{"name", "description_html", "description_json", "priority", "start_date", "target_date", "completed_at", "archived_at", "is_draft", "point", "external_source", "external_id"} {
 		if v, ok := body[field]; ok {
@@ -527,6 +539,46 @@ type stateError struct{}
 func (stateError) Error() string { return "State is not valid please pass a valid state_id" }
 
 var errInvalidState = stateError{}
+
+// resolveEstimatePoint resolves a request's `estimate_point` value against the
+// issue's project, mirroring the project-scoping validation both upstream
+// serializers perform (apps/api/plane/app/serializers/issue.py:188-195 and
+// apps/api/plane/api/serializers/issue.py:153-161): estimate points are
+// project-scoped, so a point belonging to another project is rejected with
+// "Estimate point is not valid please pass a valid estimate_point_id".
+//
+// The wire value is a Plane UUID (packages/types/src/issues/issue.ts:55:
+// `estimate_point: string | null`). A missing key, an explicit JSON null or an
+// empty string clears the relation — the frontend's EstimateSelect emits null
+// when "No estimate" is picked, and JSON drops `undefined` keys, so null is the
+// only reliable clear signal on PATCH.
+//
+// It returns the PocketBase id to store ("" to clear), or errInvalidEstimatePoint.
+func resolveEstimatePoint(app core.App, projectID string, raw any) (string, error) {
+	if raw == nil {
+		return "", nil
+	}
+	uuid, ok := raw.(string)
+	if !ok {
+		return "", errInvalidEstimatePoint
+	}
+	if uuid == "" {
+		return "", nil
+	}
+	point, _ := serializers.FindByUUID(app, "estimate_points", uuid)
+	if point == nil || point.GetString("project") != projectID {
+		return "", errInvalidEstimatePoint
+	}
+	return point.Id, nil
+}
+
+type estimatePointError struct{}
+
+func (estimatePointError) Error() string {
+	return "Estimate point is not valid please pass a valid estimate_point_id"
+}
+
+var errInvalidEstimatePoint = estimatePointError{}
 
 // orderBy maps Plane's `order_by` values onto PocketBase sort expressions.
 func orderBy(param string) string {

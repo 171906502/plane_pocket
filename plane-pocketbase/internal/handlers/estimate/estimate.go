@@ -18,11 +18,14 @@
 // would panic ServeMux with a duplicate-pattern error.
 //
 // DERIVED SHAPE — `projects.estimate`: Django's WorkspaceEstimatesEndpoint
-// selects estimates through `Project.estimate_id`, but that FK is explicitly
-// deferred in this schema (pb_migrations/1759000001_init_identity_workspace_project.go:275).
-// The workspace-wide list therefore returns every non-deleted estimate in the
-// workspace (a superset that still satisfies the frontend, which uses the list
-// only to render the estimate systems). See the accompanying report.
+// selects estimates through `Project.estimate_id`
+// (apps/api/plane/app/views/workspace/estimate.py:23). That FK was deferred
+// when this schema was built
+// (pb_migrations/1759000001_init_identity_workspace_project.go:275) but was
+// added by L-11 (pb_migrations/1759000015_project_estimate.go). This
+// workspace-wide list deliberately keeps returning every non-deleted estimate
+// in the workspace — a superset that still satisfies the frontend, which uses
+// the list only to render the estimate systems.
 package estimate
 
 import (
@@ -134,6 +137,17 @@ func (h *Handler) Create(e *core.RequestEvent) error {
 			return err
 		}
 		if err := h.createPoints(txApp, scope, user, record.Id, points); err != nil {
+			return err
+		}
+		// L-11: mirror upstream's "enable estimates on a project" behaviour —
+		// when the project does not carry an estimate system yet, the freshly
+		// created one becomes it. Upstream's own create endpoint does not do
+		// this (the frontend flips projects.estimate through the settings
+		// switch, and the store's write-back call is commented out —
+		// apps/web/store/estimates/project-estimate.store.ts:278-280), so a
+		// project that only ever calls Create would stay estimate-less and the
+		// UI gated off. Writing it back here keeps the API self-consistent.
+		if err := attachEstimateIfUnset(txApp, scope.Project.Id, record.Id); err != nil {
 			return err
 		}
 		created = record
@@ -511,6 +525,22 @@ func (h *Handler) pointsFor(estimateID string) []any {
 		out = append(out, serializers.EstimatePoint(h.App, r))
 	}
 	return out
+}
+
+// attachEstimateIfUnset points the project at the given estimate when the
+// project does not already carry one. The re-read inside the transaction keeps
+// the check honest against concurrent writers; a project that already has an
+// estimate keeps it (the settings switch, not Create, owns that decision).
+func attachEstimateIfUnset(txApp core.App, projectID, estimateID string) error {
+	project, err := txApp.FindRecordById("projects", projectID)
+	if err != nil {
+		return err
+	}
+	if project.GetString("estimate") != "" {
+		return nil
+	}
+	project.Set("estimate", estimateID)
+	return txApp.Save(project)
 }
 
 // createPoints bulk-creates the estimate's points.

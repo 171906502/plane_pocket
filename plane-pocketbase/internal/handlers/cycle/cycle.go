@@ -598,15 +598,18 @@ func (h *Handler) Progress(e *core.RequestEvent) error {
 		total = toInt(snapshot["total_issues"])
 	}
 
+	// Estimate-point aggregates are computed live from the cycle's issues
+	// (Django's CycleProgressEndpoint does the same; only the *_issues counts
+	// come from the transferred cycle's progress_snapshot).
+	estimates := serializers.BridgeEstimatePoints(h.App, "cycle_issues", "cycle", record.Id)
+
 	return e.JSON(http.StatusOK, map[string]any{
-		// Estimate-point aggregates are 0: `issues.estimate_point` is absent from
-		// this vertical slice (see serializers/module.go).
-		"backlog_estimate_points":   0,
-		"unstarted_estimate_points": 0,
-		"started_estimate_points":   0,
-		"cancelled_estimate_points": 0,
-		"completed_estimate_points": 0,
-		"total_estimate_points":     0,
+		"backlog_estimate_points":   estimates.Backlog,
+		"unstarted_estimate_points": estimates.Unstarted,
+		"started_estimate_points":   estimates.Started,
+		"cancelled_estimate_points": estimates.Cancelled,
+		"completed_estimate_points": estimates.Completed,
+		"total_estimate_points":     estimates.Total,
 		"backlog_issues":            backlog,
 		"total_issues":              total,
 		"completed_issues":          completed,
@@ -617,10 +620,14 @@ func (h *Handler) Progress(e *core.RequestEvent) error {
 }
 
 // Analytics serves GET …/cycles/{cycle_id}/analytics/ (CycleAnalyticsEndpoint).
-// Returns the assignee/label distributions over the cycle's issues. The
-// `completion_chart` burndown is left empty (it needs issue history), and the
-// `type=points` estimate variant degrades to the issues distribution because
-// `issues.estimate_point` is not part of this slice.
+// Returns the assignee/label distributions over the cycle's issues. With
+// `?type=points` and a points-type estimate in the project the distributions
+// switch to estimate sums (`total_estimates`/`completed_estimates`/
+// `pending_estimates`) and the burndown counts points instead of issues —
+// mirroring Django's CycleAnalyticsEndpoint
+// (apps/api/plane/app/views/cycle/base.py:786-938) and burndown_plot
+// (plane/utils/analytics_plot.py:123-265). The `completion_chart` burndown is
+// left empty for the issues variant (it needs issue history).
 func (h *Handler) Analytics(e *core.RequestEvent) error {
 	scope := middleware.ScopeOf(e)
 	if scope == nil || scope.Project == nil {
@@ -645,11 +652,187 @@ func (h *Handler) Analytics(e *core.RequestEvent) error {
 			})
 		}
 	}
+
+	analyticType := e.Request.URL.Query().Get("type")
+	if analyticType == "" {
+		analyticType = "issues"
+	}
+
+	// `type=points` is only meaningful when the project actually uses a
+	// points-type estimate (Django: `Project…estimate__type="points"`). The
+	// project→estimate FK is deferred in this schema, so the equivalent check
+	// asks the estimates collection directly.
+	if analyticType == "points" && h.projectHasPointsEstimate(scope.Project.Id) {
+		return e.JSON(http.StatusOK, map[string]any{
+			"assignees":        h.assigneeEstimateDistribution(record),
+			"labels":           h.labelEstimateDistribution(record),
+			"completion_chart": h.pointsBurndown(record),
+		})
+	}
+
 	return e.JSON(http.StatusOK, map[string]any{
 		"assignees":        h.assigneeDistribution(record.Id),
 		"labels":           h.labelDistribution(record.Id),
 		"completion_chart": map[string]any{},
 	})
+}
+
+// projectHasPointsEstimate reports whether the project owns an estimate of type
+// "points". Mirrors Django's `Project.objects.filter(estimate__isnull=False,
+// estimate__type="points").exists()`; the deferred projects.estimate FK makes
+// the direct estimates lookup the faithful equivalent.
+func (h *Handler) projectHasPointsEstimate(projectID string) bool {
+	record, err := h.App.FindFirstRecordByFilter(
+		"estimates",
+		"project = {:project} && type = 'points'",
+		dbx.Params{"project": projectID},
+	)
+	return err == nil && record != nil
+}
+
+// assigneeEstimateDistribution builds the per-assignee estimate breakdown for a
+// cycle's `type=points` analytics (Django: Sum(Cast("estimate_point__value",
+// FloatField())) grouped by assignee). Issues without an estimate point still
+// make their assignee appear, contributing 0 — SUM ignores NULLs, as upstream.
+func (h *Handler) assigneeEstimateDistribution(cycle *core.Record) []any {
+	var rows []struct {
+		AssigneeID         string  `db:"assignee_id"`
+		FirstName          string  `db:"first_name"`
+		LastName           string  `db:"last_name"`
+		DisplayName        string  `db:"display_name"`
+		AvatarURL          string  `db:"avatar_url"`
+		TotalEstimates     float64 `db:"total_estimates"`
+		CompletedEstimates float64 `db:"completed_estimates"`
+	}
+	err := h.App.DB().NewQuery(`
+		SELECT u.uuid AS assignee_id, u.first_name AS first_name, u.last_name AS last_name,
+		       u.display_name AS display_name, u.avatar AS avatar_url,
+		       COALESCE(SUM(CAST(ep.value AS REAL)), 0) AS total_estimates,
+		       COALESCE(SUM(CASE WHEN i.completed_at != '' THEN CAST(ep.value AS REAL) END), 0) AS completed_estimates
+		FROM cycle_issues ci
+		JOIN issues i ON i.id = ci.issue AND i.deleted_at = '' AND i.archived_at = '' AND i.is_draft = 0
+		JOIN issue_assignees ia ON ia.issue = i.id AND ia.deleted_at = ''
+		JOIN users u ON u.id = ia.assignee
+		LEFT JOIN estimate_points ep ON ep.id = i.estimate_point
+		WHERE ci.cycle = {:id} AND ci.deleted_at = ''
+		GROUP BY u.id
+		ORDER BY u.first_name, u.last_name`).
+		Bind(dbx.Params{"id": cycle.Id}).
+		All(&rows)
+	if err != nil {
+		return []any{}
+	}
+	out := make([]any, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, map[string]any{
+			"assignee_id":         row.AssigneeID,
+			"first_name":          row.FirstName,
+			"last_name":           row.LastName,
+			"display_name":        row.DisplayName,
+			"avatar_url":          nullableString(row.AvatarURL),
+			"total_estimates":     row.TotalEstimates,
+			"completed_estimates": row.CompletedEstimates,
+			"pending_estimates":   row.TotalEstimates - row.CompletedEstimates,
+		})
+	}
+	return out
+}
+
+// labelEstimateDistribution is assigneeEstimateDistribution's sibling: the same
+// per-estimate sums grouped by label (Django's label_distribution in the
+// `type=points` branch of CycleAnalyticsEndpoint).
+func (h *Handler) labelEstimateDistribution(cycle *core.Record) []any {
+	var rows []struct {
+		LabelID            string  `db:"label_id"`
+		LabelName          string  `db:"label_name"`
+		Color              string  `db:"color"`
+		TotalEstimates     float64 `db:"total_estimates"`
+		CompletedEstimates float64 `db:"completed_estimates"`
+	}
+	err := h.App.DB().NewQuery(`
+		SELECT l.uuid AS label_id, l.name AS label_name, l.color AS color,
+		       COALESCE(SUM(CAST(ep.value AS REAL)), 0) AS total_estimates,
+		       COALESCE(SUM(CASE WHEN i.completed_at != '' THEN CAST(ep.value AS REAL) END), 0) AS completed_estimates
+		FROM cycle_issues ci
+		JOIN issues i ON i.id = ci.issue AND i.deleted_at = '' AND i.archived_at = '' AND i.is_draft = 0
+		JOIN issue_labels il ON il.issue = i.id AND il.deleted_at = ''
+		JOIN labels l ON l.id = il.label
+		LEFT JOIN estimate_points ep ON ep.id = i.estimate_point
+		WHERE ci.cycle = {:id} AND ci.deleted_at = ''
+		GROUP BY l.id
+		ORDER BY l.name`).
+		Bind(dbx.Params{"id": cycle.Id}).
+		All(&rows)
+	if err != nil {
+		return []any{}
+	}
+	out := make([]any, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, map[string]any{
+			"label_id":            row.LabelID,
+			"label_name":          row.LabelName,
+			"color":               nullableString(row.Color),
+			"total_estimates":     row.TotalEstimates,
+			"completed_estimates": row.CompletedEstimates,
+			"pending_estimates":   row.TotalEstimates - row.CompletedEstimates,
+		})
+	}
+	return out
+}
+
+// pointsBurndown renders the cycle's `type=points` completion chart: for every
+// date from the cycle's start to its end, the estimate points still pending
+// (total minus the points of issues completed on or before that date). Future
+// dates are null, matching burndown_plot's `if date > timezone.now().date()`
+// branch (plane/utils/analytics_plot.py:236-249). The issue population and the
+// total mirror the upstream query: every cycle issue that carries an estimate
+// point, without an estimate-type filter.
+func (h *Handler) pointsBurndown(cycle *core.Record) map[string]any {
+	chart := map[string]any{}
+	start := cycle.GetDateTime("start_date").Time()
+	end := cycle.GetDateTime("end_date").Time()
+	if start.IsZero() || end.IsZero() || end.Before(start) {
+		return chart
+	}
+
+	var rows []struct {
+		CompletedAt string  `db:"completed_at"`
+		Value       float64 `db:"value"`
+	}
+	err := h.App.DB().NewQuery(`
+		SELECT i.completed_at AS completed_at, CAST(ep.value AS REAL) AS value
+		FROM cycle_issues ci
+		JOIN issues i ON i.id = ci.issue AND i.deleted_at = '' AND i.archived_at = '' AND i.is_draft = 0
+		JOIN estimate_points ep ON ep.id = i.estimate_point
+		WHERE ci.cycle = {:id} AND ci.deleted_at = ''`).
+		Bind(dbx.Params{"id": cycle.Id}).
+		All(&rows)
+	if err != nil {
+		return chart
+	}
+
+	var total float64
+	completed := map[string]float64{}
+	for _, row := range rows {
+		total += row.Value
+		if row.CompletedAt != "" {
+			day := datePart(row.CompletedAt)
+			completed[day] += row.Value
+		}
+	}
+
+	today := serializers.Now().Format("2006-01-02")
+	cumulative := float64(0)
+	for day := start.UTC(); !day.After(end.UTC()); day = day.AddDate(0, 0, 1) {
+		key := day.Format("2006-01-02")
+		cumulative += completed[key]
+		if key > today {
+			chart[key] = nil
+			continue
+		}
+		chart[key] = total - cumulative
+	}
+	return chart
 }
 
 // TransferIssues serves POST …/cycles/{cycle_id}/transfer-issues/

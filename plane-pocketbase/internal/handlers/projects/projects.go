@@ -267,6 +267,17 @@ func (h *Handler) Update(e *core.RequestEvent) error {
 			project.Set(flag, boolValue(v, false))
 		}
 	}
+	// L-11: `estimate` (projects.estimate) is the switch that turns the whole
+	// estimate UI on. It was silently dropped before — PATCH returned 200 but
+	// nothing was stored, so the frontend's
+	// `areEstimateEnabledByProjectId` gate never opened.
+	if raw, ok := body["estimate"]; ok {
+		estimateID, err := resolveProjectEstimate(h.App, project.Id, raw)
+		if err != nil {
+			return e.JSON(http.StatusBadRequest, map[string]any{"error": err.Error()})
+		}
+		project.Set("estimate", estimateID)
+	}
 	// Plane accepts `inbox_view` as an alias for `intake_view`.
 	if v, ok := body["inbox_view"]; ok {
 		project.Set("intake_view", boolValue(v, false))
@@ -646,6 +657,48 @@ func relationTarget(field string) string {
 		return field
 	}
 }
+
+// resolveProjectEstimate resolves a request's `estimate` value against the
+// project being updated, mirroring the project-scoping rule L-2's
+// resolveEstimatePoint enforces for estimate points
+// (internal/handlers/issues/issues.go:557): estimates are project-scoped, so
+// an estimate belonging to another project is rejected with 400.
+//
+// Upstream's ProjectSerializer (`fields = "__all__"`) applies no
+// project-scoping validation on this FK; the check is a local hardening that
+// keeps one project from pointing at another project's estimate system.
+//
+// The wire value is a Plane UUID (Django serializes the FK flat). A missing
+// key, an explicit JSON null or an empty string clears the relation — the
+// frontend's EstimateDisableSwitch PATCHes {"estimate": null} to turn the
+// feature off (components/estimates/estimate-disable-switch.tsx:36).
+//
+// It returns the PocketBase id to store ("" to clear), or errInvalidEstimate.
+func resolveProjectEstimate(app core.App, projectID string, raw any) (string, error) {
+	if raw == nil {
+		return "", nil
+	}
+	uuid, ok := raw.(string)
+	if !ok {
+		return "", errInvalidEstimate
+	}
+	if uuid == "" {
+		return "", nil
+	}
+	estimate, _ := serializers.FindByUUID(app, "estimates", uuid)
+	if estimate == nil || estimate.GetString("project") != projectID {
+		return "", errInvalidEstimate
+	}
+	return estimate.Id, nil
+}
+
+type estimateError struct{}
+
+func (estimateError) Error() string {
+	return "Estimate is not valid please pass a valid estimate_id"
+}
+
+var errInvalidEstimate = estimateError{}
 
 // slugify mirrors Django's slugify closely enough for Plane's state names.
 func slugify(value string) string {

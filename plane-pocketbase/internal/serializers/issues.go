@@ -14,10 +14,18 @@ import (
 // `cycle_issues`) are resolved here. Fields whose backing collection is outside
 // the slice are projected as their empty values and reported:
 //
-//	estimate_point    -> estimate_points  (excluded)
 //	module_ids        -> module_issues    (excluded)
 //	link_count        -> issue_links      (excluded)
 //	attachment_count  -> file_assets      (excluded)
+//
+// `estimate_point` is the related estimate point's UUID (nullable), matching
+// Django's IssueSerializer (`"estimate_point": instance.estimate_point_id`,
+// apps/api/plane/app/serializers/issue.py:849) and the frontend type
+// (`estimate_point: string | null`, packages/types/src/issues/issue.ts:55).
+// The point's key/value/description are NOT expanded here — the estimate
+// dropdown resolves them from the project's estimates list
+// (`…/projects/{id}/estimates/`, which nests the points), exactly like
+// upstream's web client does.
 //
 // `cycle_id` used to be listed above as excluded and hardcoded to nil. That was
 // a stale placeholder: `cycle_issues` now exists, so reporting nil made every
@@ -53,7 +61,7 @@ func Issue(app core.App, r *core.Record) map[string]any {
 		"state__group":     stateGroup,
 		"sort_order":       sortOrder,
 		"completed_at":     DateOnly(r, "completed_at"),
-		"estimate_point":   nil,
+		"estimate_point":   RelationUUID(app, r, "estimate_point"),
 		"priority":         priority,
 		"start_date":       DateOnly(r, "start_date"),
 		"target_date":      DateOnly(r, "target_date"),

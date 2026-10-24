@@ -20,6 +20,7 @@ import (
 
 	"github.com/plane-pocketbase/plane-pocketbase/internal/handlers/health"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/handlers/meta"
+	"github.com/plane-pocketbase/plane-pocketbase/internal/hooks"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/middleware"
 )
 
@@ -35,6 +36,10 @@ const (
 
 // Register wires every Plane route group onto the PocketBase router.
 func Register(app core.App) {
+	// Record hooks are app-level (they also fire for handler-internal saves),
+	// so they bind once here, before/behind the serve event — not per request.
+	hooks.Register(app)
+
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// Session resolution runs for every route; CSRF is enforced on unsafe
 		// methods only. Both are transparent to a client that already behaves
