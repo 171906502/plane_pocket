@@ -38,7 +38,8 @@ docs/
 ├── 08-IMPLEMENTATION-PLAN.md 分波次实施方案与验收证据
 ├── 09-SECURITY-AUDIT.md     ★ 逐端点守卫审计（对照 permissions.md 52 行矩阵）
 ├── 10-REMAINING-WORK.md     历史决策与实施记录（live 中继 §3.3–§3.5 等）
-└── 11-TASKLIST.md           ★ 实现完整度复核 + 后续任务清单（排期从这里开始）
+├── 11-TASKLIST.md           ★ 实现完整度复核 + 后续任务清单（排期从这里开始）
+└── 12-FRONTEND-DIFF.md      ★ 前端差异治理：13→7 的实测边界、上游升级流程
 ```
 
 **契约冻结文档**（在 `plane-pocketbase/spec/`，是实现的**权威来源**，不要凭记忆写代码）：
