@@ -1,13 +1,3 @@
-# Pin the package store to D: so installs never write to the system drive.
-#
-# pnpm 11 reads settings from THIS file (camelCase keys). A `store-dir` line in
-# .npmrc is silently ignored -- verified with `pnpm config list`, which shows no
-# store entry at all, and `pnpm store path`, which kept returning the default.
-# On Windows the default already lands on the project's own drive
-# (D:\.pnpm-store), so this pin is mostly documentation plus insurance against
-# someone moving the repo to C:. See docs/06-PITFALLS.md C-16.
-storeDir: "D:/.pnpm-store"
-
 packages:
   - apps/*
   - packages/*

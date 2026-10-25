@@ -154,6 +154,13 @@ cmd="${1:-}"
 case "$cmd" in
   start)
     validate_services "$@"
+    # Stale `node_modules.broken-*` / `.dead-*` / `.partial-*` trees are not
+    # covered by Vite's default `**/node_modules/**` ignore; if the watcher
+    # crawls one it re-reads thousands of nested tsconfig.json files and can OOM
+    # the dev server. Upstream's config has no ignore for them and adding one
+    # means editing `apps/*/vite.config.ts`, so the leftovers are deleted here
+    # instead. See docs/12-FRONTEND-DIFF.md (group 1).
+    bash "$PB/tests/frontend/clean-stale-modules.sh" || true
     start_many "$@"
     ;;
 

@@ -33,13 +33,6 @@ export default defineConfig(() => ({
   },
   server: {
     host: "127.0.0.1",
-    watch: {
-      // Stale dependency trees left behind by pnpm retries (node_modules.broken-*,
-      // node_modules.dead-*, node_modules.partial-*) are not covered by Vite's
-      // default `**/node_modules/**` ignore. If the watcher crawls them it re-reads
-      // thousands of nested tsconfig.json files and can OOM the dev server.
-      ignored: ["**/node_modules.*/**"],
-    },
   },
   // No SSR-specific overrides needed; alias resolves to ESM build
 }));

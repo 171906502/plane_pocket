@@ -14,30 +14,50 @@
 
 ---
 
-## 1. 现状盘点（13 个文件，2026-10-25 实测）
+## 1. 现状盘点（13 个文件里已外置 6 个，树内剩 7 个）
 
-| # | 文件 | 改了什么 | 类别 | 实测结论 |
+| # | 文件 | 改了什么 | 类别 | 现状 |
 |---|---|---|---|---|
-| 1 | `.npmrc` | `node-linker isolated→hoisted` | 环境 | **可外置**：`pnpm install --node-linker hoisted` |
-| 2 | `pnpm-workspace.yaml` | `storeDir: D:/.pnpm-store` | 环境 | **可外置**：本机默认已是该路径，纯保险 |
-| 3 | `apps/web/vite.config.ts` | watch 忽略 `node_modules.*` | 环境 | **可外置**：仅 dev；清理残留目录即可 |
-| 4 | `apps/admin/vite.config.ts` | 同上 | 环境 | 同上 |
-| 5 | `apps/space/vite.config.ts` | 同上 | 环境 | 同上 |
-| 6 | `apps/space/package.json` | `start/preview` 改 `serve -s` | 环境 | **可外置**：我们不用该 app 的 `pnpm start` |
+| 1 | `.npmrc` | `node-linker isolated→hoisted` | 环境 | **已外置**（2026-10-26）→ `tests/frontend/install-deps.sh` 的 `--node-linker hoisted` |
+| 2 | `pnpm-workspace.yaml` | `storeDir: D:/.pnpm-store` | 环境 | **已外置** → 同一脚本的 `--store-dir`（本机默认已是该路径，纯保险） |
+| 3 | `apps/web/vite.config.ts` | watch 忽略 `node_modules.*` | 环境 | **已外置** → `tests/frontend/clean-stale-modules.sh`，由 `stack.sh start` 调用 |
+| 4 | `apps/admin/vite.config.ts` | 同上 | 环境 | **已外置** → 同上 |
+| 5 | `apps/space/vite.config.ts` | 同上 | 环境 | **已外置** → 同上 |
+| 6 | `apps/space/package.json` | `start/preview` 改 `serve -s` | 环境 | **已外置** → 我们不用该 app 的 `pnpm start`（Go 托管静态文件），已还原上游 |
 | 7 | `packages/tailwind-config/index.css` | `@import "tailwindcss"` → `"tailwindcss/index.css"` | 构建硬修复 | **必需**：回退后 `ENOENT … apps/web/tailwindcss`（Vite 8 postcss-import 不解析 exports） |
 | 8 | `apps/space/react-router.config.ts` | `ssr: true→false` | 单端口 SPA 化 | **必需**：静态托管的前提 |
 | 9 | `apps/space/app/root.tsx` | 删 `headers` 导出 | 单端口 SPA 化 | **必需**：`SPA Mode: invalid route export(s) … headers` |
 | 10 | `apps/space/app/page.tsx` | 删 `headers` 导出 | 单端口 SPA 化 | **必需**：同上 |
 | 11 | `apps/space/app/issues/[anchor]/layout.tsx` | `loader → clientLoader` | 单端口 SPA 化 | **必需**：`SPA Mode: invalid route export(s) … loader` |
-| 12 | `apps/web/hooks/use-collab-description-sync.ts` | 新增 177 行协作回写钩子 | 协作回写 | 见 §2 |
-| 13 | `apps/web/components/pages/editor/page-root.tsx` | 挂接上述钩子（12 行） | 协作回写 | 见 §2 |
+| 12 | `apps/web/hooks/use-collab-description-sync.ts` | 141 行协作回写钩子 | 协作回写 | 见 §2 |
+| 13 | `apps/web/components/pages/editor/page-root.tsx` | 挂接上述钩子（4 行） | 协作回写 | 见 §2 |
+
+### 外置到哪（1–6 号）
+
+| 原来改在哪 | 现在放在哪 | 为什么这样可以 |
+|---|---|---|
+| `.npmrc` 的 `node-linker` | `tests/frontend/install-deps.sh` | 安装参数是**机器**属性，不是项目属性；命令行走 `--node-linker hoisted` 等价（C-14） |
+| `pnpm-workspace.yaml` 的 `storeDir` | 同一脚本的 `--store-dir` | 同上（C-16） |
+| 三个 `vite.config.ts` 的 `server.watch.ignored` | `tests/frontend/clean-stale-modules.sh` | 根因是**残留目录**（`node_modules.broken-*` 等），删掉就不需要忽略规则 |
+| `apps/space/package.json` 的 `start`/`preview` | 无需替代 | 我们从不执行该 app 的 `pnpm start` |
+
+```bash
+# 安装依赖（唯一入口）
+bash plane-pocketbase/tests/frontend/install-deps.sh
+
+# 清理残留依赖树（stack.sh start 会自动调用）
+bash plane-pocketbase/tests/frontend/clean-stale-modules.sh --dry-run
+```
 
 ### 实测证据（可复现）
 
 ```bash
-# 把 1–6 号文件回退成上游版本后，三端构建仍全绿：
-#   [build] web OK / admin OK / space OK  →  EXIT=0
-git show ce5a255^:plane-preview/.npmrc > plane-preview/.npmrc      # 依次 6 个文件
+# 1–6 号回退成上游版本后，三端构建仍全绿（2026-10-26 实测）：
+#   [build] web OK (34M) / admin OK (13M) / space OK (15M)  →  EXIT=0
+for f in .npmrc pnpm-workspace.yaml apps/web/vite.config.ts \
+         apps/admin/vite.config.ts apps/space/vite.config.ts apps/space/package.json; do
+  git checkout ce5a255~1 -- "plane-preview/$f"
+done
 cd plane-pocketbase && bash tests/browser/build-frontends.sh
 
 # 回退 7 号（tailwind）→ 构建失败：
@@ -49,7 +69,7 @@ cd plane-pocketbase && bash tests/browser/build-frontends.sh
 #   Error: SPA Mode: 1 invalid route export(s) in `./issues/[anchor]/layout.tsx`: `loader`.
 ```
 
-**结论：可压缩到 7 个文件**（7–13）。其中 5 个是"静态托管 + 构建兼容"的硬约束，2 个是协作回写。
+**结论：树内 7 个文件**（7–13）。其中 5 个是“静态托管 + 构建兼容”的硬约束，2 个是协作回写。
 
 ---
 
@@ -131,10 +151,13 @@ code 块 lowlight 的 `<span class="hljs-…">`。等价于用 Go 重写 `DOMSer
 
 ```
 plane-pocketbase/frontend-patches/
-├── 0001-tailwind-import-subpath.patch
-├── 0002-space-spa-mode.patch          # 8–11 四个文件合一
-└── 0003-collab-description-sync.patch # 12–13
+├── 0001-tailwind-import-subpath.patch   # 7 号，待生成
+├── 0002-space-spa-mode.patch            # 8–11 四个文件合一，待生成
+└── 0003-collab-description-sync.patch   # 12–13，已生成（2026-10-26）
 ```
+
+> 补丁基线是 `ce5a255~1`：该提交的 `plane-preview/` 是上游纯净树。
+> 生成方式 `git diff ce5a255~1 -- <文件>`；校验方式 `git apply --check -R`。
 
 配套脚本（建议）：
 

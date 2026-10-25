@@ -36,11 +36,6 @@ export default defineConfig(() => ({
   },
   server: {
     host: "127.0.0.1",
-    watch: {
-      // Ignore stale dependency trees (node_modules.broken-* / .dead-* / .partial-*);
-      // crawling them re-reads nested tsconfig.json files and can OOM the dev server.
-      ignored: ["**/node_modules.*/**"],
-    },
   },
   // No SSR-specific overrides needed; alias resolves to ESM build
 }));
