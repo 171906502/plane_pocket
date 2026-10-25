@@ -783,6 +783,111 @@ mark-read / unread-count / preferences），**没有任何写入路径** insert 
 同 L-1）；5s 合并窗口内同一人对同类触发只留第一条；`state_change` /
 `issue_completed` / `property_change` 三类通知按最小闭环要求留 TODO。
 
+### 3.12 L-6 Cycle 分组视图（2026-10-25）：`group_by` / `sub_group_by` 落地
+
+`GET …/cycles/{id}/cycle-issues/` 之前无视分组参数一律返回平铺信封（handler 注释
+自认未实现）。本轮把上游 `CycleIssueViewSet.list` 的 Grouped/SubGroupedOffsetPaginator
+形状补齐。
+
+**实现**
+
+- `internal/serializers/pagination.go`（共享分组助手，space 的 issues 板已在用）：
+  - `GroupQuery` 加 `SubGroupedBy` / `SubGroupKeys` / `SubGroupFilter`，不填时行为
+    与之前逐字节相同（既有调用零影响）；
+  - `GroupBucket.Results` 改 `any`，子分组模式是嵌套桶 map（每组 `{results,
+    total_results}`，`results` 再嵌 `{子组id: {results, total_results}}`）——
+    与前端 `packages/types/src/issues/issue.ts` 的 `TIssueResponseResults` 逐字段一致；
+  - 新增 `GroupBuckets`：自定义 `MarshalJSON` 的**有序**桶 map。不加它，encoding/json
+    会对 map 按字母序输出，把上游 `issue_group_values()` 的展示顺序（states 按
+    `sequence`、priority 按 `["low","medium","high","urgent","none"]`）打乱。
+  - 子分组语义对齐上游 `__get_field_dict`：组级 `total_results` = 组内全量计数；
+    每组只 seed **有行**的子组（空组 → `"results": {}`）；分页按 (组,子组) 格子切。
+- `internal/handlers/cycle/grouping.go`（新）：`issueGroupKeys` 按上游
+  `issue_group_values()` 产出桶——`state_id`（项目 states 排除 triage，按
+  `sequence`）、`priority`、`state__group`；其余 key `ok=false`。priority 的
+  `none` 桶过滤器带 `|| ({:p} = 'none' && priority = '')` 兜住 DB 空串（PocketBase
+  在解析 filter 前把 `{:param}` 替换成带引号字面量，参数=字面量比较合法）。
+- `internal/handlers/cycle/issue.go`：`group_by`==`sub_group_by` → 400（上游同文）；
+  受支持 → 分组信封；**未知 key 整体退化平铺**（L-6 契约：fallback 不是 500）；
+  无参数路径一行未动。
+
+**验收（`go test -count=1 ./...` 31 包全 ok；gofmt/vet 干净）**：双层
+`state_id+priority` 的嵌套/桶序/两级 `total_results`/空格子省略、单层含空组
+`results: []`、`state__group` 与 priority 固定组序、无参数平铺信封不变、未知 key
+退化平铺、相等 key 400，各有测试钉住（`cycle/grouping_test.go`，7 条）。反向：
+注释掉 `issue.go` 的分组分支 → 5 条分组测试实测 FAIL、2 条平铺测试仍 PASS
+（逐条清单见 `docs/11-TASKLIST.md` L-6 卡片）。
+
+**已知限制**：`labels__id`/`assignees__id`/`target_date` 等分组 key 未实现（退化
+平铺）；组桶里不放组元数据（state 名/色由 states 接口提供，与上游一致——前端
+`processIssueResponse` 只按 id 取键）。
+
+---
+
+### 3.13 L-7 最近访问（2026-10-25）：`user_recent_visits` 从只读到一个请求路径内的 upsert
+
+侧边栏 / 命令面板的「最近访问」永远空：`internal/handlers/view/recent.go` 只有
+读端点，全仓没有任何写入口。本轮不在钩子层做（详情 GET 是读请求，钩子没有
+附着点），而是在两个详情 handler 的 200 路径各加一次 `RecordVisit`。
+
+**实现**
+
+- `internal/handlers/view/recent.go`：导出助手 `RecordVisit` —— 先查
+  `(user, entity_name, entity_identifier)`，命中且 `visited_at` 距今 < 60s
+  直接返回（**写节流**，L-7 卡片明示许可）；命中且过期 → 原地 Save（
+  `visited_at` 是 `OnUpdate` autodate 列，保存即刷新）；未命中 → 插入。
+  `entity_identifier` 写实体的 **Plane UUID**（前端
+  `fetchWorkspaceRecents` → `TActivityEntityData` 按它解析 `entity_data`，
+  读侧 `FindByUUID` 同）。首访时间戳必须 `SetRaw`（autodate 的 `Set` 被吞）。
+  错误与 panic 全部记日志吞掉（D-12 前提 3 的请求路径版），GET 永不因此失败。
+- `internal/handlers/issues/issues.go` `Detail` / `internal/handlers/page/page.go`
+  `Detail`：各加一行调用，都放在 404/可见性分支**之后**，只在真实 200 时记录。
+- 读端点本就按 `-visited_at` 排序，无需改动。
+- 新测试：`issues/recent_test.go`（3 行 + wire 倒序 + 节流 + SQL 回拨后刷新 +
+  404 不记录）、`page/recent_visit_test.go`（页面 1 行 + 节流 + 私有页 404 不记录）。
+
+**验收（`go test -count=1 ./...` 31 包全 ok）**：3 个 issue 详情 → 3 行且
+`GET …/recent-visits/` 倒序；60s 内重访 ×2 → 仍 3 行、时间戳不变；回拨 2 分钟
+后再访 → 原行刷新；404 → 0 行。反向验证：删 `issues.Detail` 的调用 → 两条测试
+实测 FAIL（逐条清单在 `docs/11-TASKLIST.md` L-7 验收表）。
+
+**已知限制**：60s 内重访不刷新时间戳（对上游"每次都更新"的有意偏离）；并发
+首访理论上可产生两行（表无唯一约束，spec §3.13 REVIEW 既有决定）；
+`entity_name=project` 仍无写入（不在本卡范围）。
+
+---
+
+### 3.14 L-8 公共 API 文档页（2026-10-25）：占位 HTML → 零依赖静态端点表
+
+`/api/v1/` 的 Swagger/ReDoc 页一直是一行占位文字。离线部署不允许 CDN，
+`redoc.standalone.js`（约 2 MB）既拿不到也不能整包进仓库，故选**服务端渲染
+的静态分组表格**：无 JS、无外链、无字体请求，样式内联单个 `<style>`，
+CSP 无需放开（`/api/v1` 本就无全局 CSP 中间件）。
+
+**实现**
+
+- `internal/handlers/publicapi/docs.go`（新）：端点表 `docEndpoints`
+  （151 条 method/path/group/auth/description，与 `internal/router/publicapi.go`
+  的注册一一对应，含 `work-items`/`issues` 双别名）+ `renderDocsHTML()`
+  （18 个分组 section，进程启动时渲染一次）+ `Docs` handler。
+- `internal/handlers/publicapi/publicapi.go`：删掉 `swaggerHTML`/`redocHTML`
+  占位常量，`SchemaUI` 改返回同一份文档页。
+- `internal/router/publicapi.go`：仅 1 行 `api.GET("/{$}", h.Docs)` ——
+  `/api/v1/` 根此前 404，验收要求浏览器直开该路径（越界 1 行，已明报）。
+- `internal/handlers/publicapi/docs_test.go`（新）：① `GET /api/v1/` 返回
+  200 + 文档标记 + 151 行全量端点 + 无 `http(s)://`/`<script`/`<link`/`src=`/`url(`
+  外部引用；② go/ast 解析路由注册文件（含 range 循环展开）与文档表
+  **1:1 双向比对**——新增公开路由不补文档即 FAIL（实测抓出过 100+ 条漏
+  `{$}` 锚点的表项）。
+
+**验收（`go test -count=1 ./...` 全部包 ok）**：二进制 40,369,152 →
+40,404,992 字节（+35,840 B ≈ +0.09%；若走 ReDoc 方案约 +2 MB）。
+逐条验收表与反向验证清单在 `docs/11-TASKLIST.md` L-8。
+
+**已知限制**：页面是端点清单而非交互式 explorer（请求/响应 schema 不在
+页面上，`/api/v1/schema/` 仍是 OpenAPI 桩）；`/schema/swagger-ui/`、
+`/schema/redoc/` 别名返回同一静态页。
+
 ---
 
 ---

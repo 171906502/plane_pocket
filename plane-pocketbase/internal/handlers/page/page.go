@@ -37,6 +37,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 
+	"github.com/plane-pocketbase/plane-pocketbase/internal/handlers/view"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/live"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/middleware"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/serializers"
@@ -179,6 +180,9 @@ func (h *Handler) Detail(e *core.RequestEvent) error {
 	if h.guestBlocked(e, scope, page) {
 		return e.JSON(http.StatusBadRequest, map[string]any{"error": "You are not allowed to view this page"})
 	}
+	// L-7: record the visit on the 200 path only — the helper swallows its own
+	// errors so the read never fails because of it.
+	view.RecordVisit(h.App, middleware.CurrentUser(e), scope.Workspace.Id, scope.Project.Id, "page", serializers.UUID(page))
 	data := serializers.PageDetail(h.App, page, h.isFavorite(e, scope, serializers.UUID(page)))
 	data["issue_ids"] = h.linkedIssueIDs(page)
 	return e.JSON(http.StatusOK, data)

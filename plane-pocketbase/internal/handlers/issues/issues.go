@@ -16,6 +16,7 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 
 	"github.com/plane-pocketbase/plane-pocketbase/internal/filters"
+	"github.com/plane-pocketbase/plane-pocketbase/internal/handlers/view"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/middleware"
 	"github.com/plane-pocketbase/plane-pocketbase/internal/serializers"
 )
@@ -278,6 +279,9 @@ func (h *Handler) Detail(e *core.RequestEvent) error {
 	if issue == nil {
 		return e.JSON(http.StatusNotFound, map[string]any{"error": "The required object does not exist."})
 	}
+	// L-7: record the visit on the 200 path only — the helper swallows its own
+	// errors so the read never fails because of it.
+	view.RecordVisit(h.App, middleware.CurrentUser(e), scope.Workspace.Id, scope.Project.Id, "issue", serializers.UUID(issue))
 	return e.JSON(http.StatusOK, serializers.Issue(h.App, issue))
 }
 

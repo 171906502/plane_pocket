@@ -1,40 +1,40 @@
 
 ===== E1-open-project =====
-url=http://localhost:8000/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/issues/
-TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 📌 hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 📌 hrms Work items Pages Community 📌 hrms Work Items 1 Display Analytics Add work item All work items 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog None Start date Du
+url=http://localhost:8000/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/issues/
+TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 💻 hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 💻 hrms Work items Pages Community 💻 hrms Work Items 1 Display Analytics Add work item All work items 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog None Start date Du
   [shot] 26-publish-entry.png  (项目页（Publish 入口所在）)
 
 ===== E2-open-publish-modal =====
 candidate 0: clicked at (218,417), menu open=true
 clicked 'Publish project'
   [shot] 27-publish-modal.png  (Publish project 弹窗)
-TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 📌 hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 📌 hrms Work items Pages Community 📌 hrms Work Items 1 Display Analytics Add work item All work items 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog None Start date Du
+TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 💻 hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 💻 hrms Work items Pages Community 💻 hrms Work Items 1 Display Analytics Add work item All work items 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog None Start date Du
 
 ===== E3-publish =====
 clicked Publish
   [shot] 28-published-link.png  (发布成功，显示公开链接)
-publishLink=http://localhost:8000/spaces/issues/4227553f-398b-4fa7-b4cb-155d86665000
-TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 📌 hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 📌 hrms Work items Pages Community 📌 hrms Work Items 1 Public Display Analytics Add work item All work items 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog None Start 
+publishLink=http://localhost:8000/spaces/issues/9f64ec05-52eb-4dac-9633-3d62be3bde15
+TEXT=H hrms Star us on GitHub W Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 💻 hrms Work items Pages Community Projects New work item Home Drafts Your work Stickies Workspace Projects More Projects 💻 hrms Work items Pages Community 💻 hrms Work Items 1 Public Display Analytics Add work item All work items 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog None Start 
 
 ===== E4-space-view =====
-opening http://localhost:8000/spaces/issues/4227553f-398b-4fa7-b4cb-155d86665000
-settings={"status":200,"anchor":"4227553f-398b-4fa7-b4cb-155d86665000","view_props":{"kanban":true,"list":true}}
-url=http://localhost:8000/spaces/issues/4227553f-398b-4fa7-b4cb-155d86665000/?board=list
-TEXT=📌 hrms Filters W Wilber Backlog 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog Todo 0 In Progress 0 Done 0 Cancelled 0 Powered by Plane Publish
+opening http://localhost:8000/spaces/issues/9f64ec05-52eb-4dac-9633-3d62be3bde15
+settings={"status":200,"anchor":"9f64ec05-52eb-4dac-9633-3d62be3bde15","view_props":{"kanban":true,"list":true}}
+url=http://localhost:8000/spaces/issues/9f64ec05-52eb-4dac-9633-3d62be3bde15/?board=list
+TEXT=💻 hrms Filters W Wilber Backlog 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog Todo 0 In Progress 0 Done 0 Cancelled 0 Powered by Plane Publish
   [shot] 29-space-published-issues.png  (Space：公开的 Issues 列表)
 
 ===== E5-space-issue-detail =====
 clicked the issue link in Space
-url=http://localhost:8000/spaces/issues/4227553f-398b-4fa7-b4cb-155d86665000/?board=list&peekId=c8149036-7474-4e83-9087-93e53a56e357
-TEXT=📌 hrms Filters W Wilber HRMS-1 验证 PocketBase 后端：创建第一个工作项 State Backlog Priority None Due date Empty Backlog 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog Todo 0 In Progress 0 Done 0 Cancelled 0 Powered by Plane Publish
+url=http://localhost:8000/spaces/issues/9f64ec05-52eb-4dac-9633-3d62be3bde15/?board=list&peekId=51b533fa-efa6-40a7-aac1-4bc1a872811c
+TEXT=💻 hrms Filters W Wilber HRMS-1 验证 PocketBase 后端：创建第一个工作项 State Backlog Priority None Due date Empty Backlog 1 HRMS-1 验证 PocketBase 后端：创建第一个工作项 Backlog Todo 0 In Progress 0 Done 0 Cancelled 0 Powered by Plane Publish
   [shot] 30-space-issue-detail.png  (Space：工作项详情（只读）)
 
-===== run5-publish-space  (2026-10-24T16:56:38.728Z) =====
+===== run5-publish-space  (2026-10-25T02:59:20.780Z) =====
 -- FAILED REQUESTS --
 (none)
 
 -- MUTATIONS --
-200  POST   /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/project-deploy-boards/
+200  POST   /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/project-deploy-boards/
 
 -- API READS (deduped, query strings kept) --
 200  GET    /api/instances/
@@ -42,36 +42,36 @@ TEXT=📌 hrms Filters W Wilber HRMS-1 验证 PocketBase 后端：创建第一�
 200  GET    /api/users/me/settings/
 200  GET    /api/users/me/profile/
 200  GET    /api/users/me/workspaces/
-200  GET    /api/users/me/workspaces/hrms/project-roles/
-200  GET    /api/workspaces/hrms/workspace-members/me/
-200  GET    /api/workspaces/hrms/projects/
-200  GET    /api/workspaces/hrms/sidebar-preferences/
 200  GET    /api/workspaces/hrms/members/
+200  GET    /api/users/me/workspaces/hrms/project-roles/
+200  GET    /api/workspaces/hrms/sidebar-preferences/
+200  GET    /api/workspaces/hrms/workspace-members/me/
 200  GET    /api/workspaces/hrms/user-properties/
+200  GET    /api/workspaces/hrms/projects/
 200  GET    /api/workspaces/hrms/states/
 200  GET    /api/workspaces/hrms/users/notifications/unread/
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/project-members/me/
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/issue-labels/
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/members/
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/intake-state/
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/estimates/
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/user-properties/
-200  GET    /api/workspaces/hrms/modules/
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/cycles/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/project-members/me/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/user-properties/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/issue-labels/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/members/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/intake-state/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/states/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/cycles/
 200  GET    /api/workspaces/hrms/user-favorites/?all=true
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/modules/
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/views/
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/states/
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/issues/?order_by=-created_at&sub_issue=true&filters=%7B%7D&layout=list&cursor=100:0:0&per_page=100
-200  GET    /api/workspaces/hrms/projects/e7cb7dcb-b045-4589-8934-900228914772/project-deploy-boards/
-200  GET    /api/public/anchor/4227553f-398b-4fa7-b4cb-155d86665000/settings/
-200  GET    /api/public/anchor/4227553f-398b-4fa7-b4cb-155d86665000/meta/
-200  GET    /api/public/anchor/4227553f-398b-4fa7-b4cb-155d86665000/labels/
-200  GET    /api/public/anchor/4227553f-398b-4fa7-b4cb-155d86665000/states/
-200  GET    /api/public/anchor/4227553f-398b-4fa7-b4cb-155d86665000/issues/?cursor=50:0:0&per_page=50&group_by=state_id
-200  GET    /api/public/anchor/4227553f-398b-4fa7-b4cb-155d86665000/issues/c8149036-7474-4e83-9087-93e53a56e357/
-200  GET    /api/public/anchor/4227553f-398b-4fa7-b4cb-155d86665000/issues/c8149036-7474-4e83-9087-93e53a56e357/comments/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/estimates/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/views/
+200  GET    /api/workspaces/hrms/modules/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/modules/
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/issues/?order_by=-created_at&sub_issue=true&filters=%7B%7D&layout=list&cursor=100:0:0&per_page=100
+200  GET    /api/workspaces/hrms/projects/d24f8db9-15b9-411a-ac2b-849a5e8399f2/project-deploy-boards/
+200  GET    /api/public/anchor/9f64ec05-52eb-4dac-9633-3d62be3bde15/settings/
+200  GET    /api/public/anchor/9f64ec05-52eb-4dac-9633-3d62be3bde15/meta/
+200  GET    /api/public/anchor/9f64ec05-52eb-4dac-9633-3d62be3bde15/states/
+200  GET    /api/public/anchor/9f64ec05-52eb-4dac-9633-3d62be3bde15/labels/
+200  GET    /api/public/anchor/9f64ec05-52eb-4dac-9633-3d62be3bde15/issues/?cursor=50:0:0&per_page=50&group_by=state_id
+200  GET    /api/public/anchor/9f64ec05-52eb-4dac-9633-3d62be3bde15/issues/51b533fa-efa6-40a7-aac1-4bc1a872811c/
+200  GET    /api/public/anchor/9f64ec05-52eb-4dac-9633-3d62be3bde15/issues/51b533fa-efa6-40a7-aac1-4bc1a872811c/comments/
 
 
-FINAL_URL=http://localhost:8000/spaces/issues/4227553f-398b-4fa7-b4cb-155d86665000/?board=list&peekId=c8149036-7474-4e83-9087-93e53a56e357
+FINAL_URL=http://localhost:8000/spaces/issues/9f64ec05-52eb-4dac-9633-3d62be3bde15/?board=list&peekId=51b533fa-efa6-40a7-aac1-4bc1a872811c

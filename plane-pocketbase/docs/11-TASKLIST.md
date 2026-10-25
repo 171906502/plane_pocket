@@ -16,9 +16,9 @@
 | 轴 | 结论 |
 |---|---|
 | **路径/方法覆盖** | 342 模式；26 条未匹配**全部已归类**（15 项方案内排除 + 10 项 `epics` 幽灵 + 1 项三元模板误报）；`METHOD-MISSING = 0`。**真实缺口 0** |
-| **写入路径覆盖** | 82 张业务表：53 张有写入口、14 张只读、15 张从未被引用。**其中 5 张只读表对应 5 个真实功能缺口** |
+| **写入路径覆盖** | 82 张业务表：53 张有写入口、15 张只读、14 张从未被引用（死表已登记在 `07` §7.1，**不要重新实现**；L-10 复核把 `accounts` 从死表改判为只读活表） |
 | **浏览器端到端** | `run1`–`run5` 全绿（含 Pages 协作编辑、发布到 Space） |
-| **功能完整度** | 主体可用；**2 处派生数据缺失**（通知 / 最近访问）。活动流（L-1）、估算点（L-2）、版本历史（L-3）已于 2026-10-24 验收 |
+| **功能完整度** | 主体可用；派生数据缺口已收敛：活动流（L-1）、估算点（L-2）、版本历史（L-3）、通知（L-4）已于 2026-10-24 验收，最近访问（L-7）已于 2026-10-25 验收 |
 
 一句话：**能点、能存、能读**；「系统自己产生的事件」已经有了第一条通道（L-1 建的 `internal/hooks/`），
 版本历史（L-3）已挂在这条通道上，通知 / 最近访问是 L-4 / L-7 的事。
@@ -32,14 +32,14 @@
 | 工作区 / 成员 / 邀请 | ✅ 完整 | |
 | 项目 / 设置 / 项目成员 | ✅ 完整 | |
 | 工作项 CRUD / 评论 / 关系 / 附件 / 订阅 / 反应 / 投票 | ✅ 完整 | 活动流（L-1）、估算点（L-2）、描述版本历史（L-3）已落地 |
-| 周期（Cycle） | ⚠️ 主体可用 | 估算合计已真实聚合、`type=points` 已可用、UI 门控已通（L-2/L-11）；剩燃尽图 `type=issues` 与分组视图（L-6） |
+| 周期（Cycle） | ⚠️ 主体可用 | 估算合计已真实聚合、`type=points` 已可用、分组视图已落地（L-6）、UI 门控已通（L-2/L-11）；剩燃尽图 `type=issues` |
 | 模块（Module） | ⚠️ 主体可用 | 估算合计已真实聚合（L-2） |
-| 视图 / 筛选 / 布局 | ✅ 完整 | `group_by` 在 cycle-issues 上未实现（L-6） |
+| 视图 / 筛选 / 布局 | ✅ 完整 | cycle-issues 的 `group_by`/`sub_group_by` 已实现（L-6） |
 | Intake | ✅ 完整 | |
 | Pages（含协作编辑） | ✅ 完整 | 版本历史已落地（L-3） |
 | 分析 / Dashboard | ⚠️ 部分 | 「最近活动」已有数据（L-1）；燃尽图 `type=points` 已有数据，`type=issues` 仍空（属 L-1 数据面，见 §3 说明） |
 | 通知 / 收件箱 | ❌ 空壳 | 只有消费端，没有生产端（L-4） |
-| 公共 API v1 | ⚠️ 端点完整 | `/api/v1/` 文档页是占位 HTML（L-8） |
+| 公共 API v1 | ✅ 端点完整 | 文档页已落地（L-8）：`/api/v1/` 渲染零依赖分组端点表，与路由注册表测试级同步 |
 | 管理后台（admin） | ✅ 完整 | |
 | 运维（备份 / 健康 / 门禁） | ⚠️ 一处缺口 | 备份脚本漏了 `live/`（L-5） |
 
@@ -99,8 +99,8 @@ METHOD-MISSING      : 0
 | 分类 | 数量 | 代表 |
 |---|---|---|
 | 有写入口 | 53 | `issues`、`pages`、`cycles`、`file_assets`、`issue_relations` … |
-| 只读（读接口在、写入口无） | 14 | `issue_activities`、`page_versions`、`notifications`、`user_recent_visits`、`page_logs` … |
-| 从未被引用（死表） | 15 | `teams`、`workspace_themes`、`issue_types`、`issue_blockers`、`descriptions` … |
+| 只读（读接口在、写入口无） | 15 | `issue_activities`、`page_versions`、`notifications`、`user_recent_visits`、`page_logs` … |
+| 从未被引用（死表） | 14 | `teams`、`workspace_themes`、`issue_types`、`issue_blockers`、`descriptions` …（完整清单见 `07` §7.1） |
 
 **14 张只读表逐条定性**
 
@@ -110,7 +110,7 @@ METHOD-MISSING      : 0
 | `page_versions` | ❌ **缺口 L-3** | `page.VersionsList` 读，无写 |
 | `issue_description_versions` | ❌ **缺口 L-3** | issue/intake 两处读，无写 |
 | `notifications` | ❌ **缺口 L-4** | 路由只有 GET/PATCH/DELETE + mark-read，**没有创建入口** |
-| `user_recent_visits` | ❌ **缺口 L-7** | `view/recent.go` 读，无写 |
+| `user_recent_visits` | ✅ **L-7 已验收**（2026-10-25） | `view.RecordVisit` 在 issue / page 详情 GET 成功路径 upsert |
 | `page_logs` | ⚠️ L-9（前端无入口） | `page.go:1140` 读，无写；前端无 service |
 | `description_versions` | 死表 | 上游同名 `db_table`，本项目用 `issue_description_versions` |
 | `draft_issue_*`（4 张） | 正常 | 经 `createJoin` 写入（扫描假阳性） |
@@ -130,11 +130,11 @@ METHOD-MISSING      : 0
 | **L-3** | 版本历史（页面 + 工作项） | P0 | **已验收** | `internal/hooks/version*.go`(新)、`internal/handlers/page/page.go`（仅恢复路径）、`internal/live`（一个导出方法） | 中 |
 | **L-4** | 通知生成（分配 / 提及 / 评论） | P0 | **已验收** | `internal/hooks/notify*.go`(新)、`internal/hooks/hooks.go`（挂注册） | 中大 |
 | **L-5** | 备份覆盖 `live/` 目录 | P1 | **已验收** | `tests/backup.sh`、`tests/restore.sh`、`tests/backup-drill.sh` | 小 |
-| **L-6** | Cycle 分组视图（`group_by`/`sub_group_by`） | P1 | 待开始 | `internal/handlers/cycle/issue.go`、`internal/serializers/issues.go` | 中 |
-| **L-7** | 最近访问（`user_recent_visits` 写入） | P1 | 待开始 | `internal/handlers/view/recent.go`、`internal/handlers/issues/*.go`（仅补一行记录） | 小 |
-| **L-8** | 公共 API 文档页 | P1 | 待开始 | `internal/handlers/publicapi/publicapi.go` | 小 |
+| **L-6** | Cycle 分组视图（`group_by`/`sub_group_by`） | P1 | **已验收** | `internal/handlers/cycle/grouping.go`(新)、`internal/handlers/cycle/issue.go`、`internal/serializers/pagination.go`（分组助手加子分组） | 中 |
+| **L-7** | 最近访问（`user_recent_visits` 写入） | P1 | **已验收** | `internal/handlers/view/recent.go`（新增 `RecordVisit`）、`internal/handlers/issues/issues.go`、`internal/handlers/page/page.go`（各一处调用） | 小 |
+| **L-8** | 公共 API 文档页 | P1 | **已验收** | `internal/handlers/publicapi/publicapi.go`、`internal/handlers/publicapi/docs.go`(新)、`internal/router/publicapi.go`（仅 1 行：注册 `GET /api/v1/{$}`） | 小 |
 | **L-9** | 页面 ↔ 工作项关联（`page_logs`） | P2 | **暂不做** | `internal/handlers/page/page.go` | 小 |
-| **L-10** | 死表与文档一致性清理 | P2 | 待开始 | `pb_migrations/`(新)、`docs/07` | 小 |
+| **L-10** | 死表与文档一致性清理 | P2 | **已验收** | `docs/07`（§7.1 死表登记）、`docs/11`（本卡） | 小 |
 | **L-11** | `projects.estimate` 字段 + 估算 UI 门控打通 | P0 | **已验收** | `pb_migrations/`(新)、`internal/handlers/projects/**`、`internal/serializers/projects.go`、`internal/handlers/estimate/**` | 中 |
 
 **状态取值**：`待开始` / `进行中` / `已验收` / `暂不做`。完成一项就改一格 —— 这张表是排期真相。
@@ -551,22 +551,79 @@ GET …/users/notifications/            # → 1 条 {"entity_name":"issue","trig
 
 ---
 
-### L-6 · Cycle 分组视图（`group_by` / `sub_group_by`）
+### L-6 · Cycle 分组视图（`group_by` / `sub_group_by`） ✅ 已验收（2026-10-25）
 
 **现象**：周期内的工作项列表在"按状态分组"视图下退化成平铺。
-**证据**：`internal/handlers/cycle/issue.go:18-20` 注释已声明未实现。
+**证据**：`internal/handlers/cycle/issue.go` 注释已声明未实现。
 
 **目标**：`GET …/cycles/{id}/cycle-issues/?group_by=state_id&sub_group_by=priority`
 返回上游的分组信封（`grouped_by` + `sub_grouped_by` + `issues`）。
 
-**验收**：同一组数据，带 `group_by` 时返回结构含 `grouped_by`；不带时是平铺信封。
-反向：把分组分支删掉 → 结构断言 FAIL。
+**实际实现（2026-10-25）**
 
-**风险**：低，但**必须逐字段对齐上游** `CycleIssueViewSet.list` 的分组形状，不要自己发明。
+| 文件 | 说明 |
+|---|---|
+| `internal/handlers/cycle/grouping.go`（新） | `issueGroupKeys`：按上游 `issue_group_values()`（`plane/utils/grouper.py`）产出有序分组桶——`state_id` = 项目 states（排除 triage）按 `State.Meta` 的 `sequence` 排序、`priority` = `["low","medium","high","urgent","none"]`、`state__group` = 5 个固定组；其余 key 返回 `ok=false`（labels__id/assignees__id/target_date…）。priority 的桶过滤器带 `|| ({:p} = 'none' && priority = '')`，让 DB 里的空串落进 `none` 桶（序列化器把 '' 渲成 "none"；PocketBase 在解析 filter 前把 `{:param}` 替换成带引号字面量，参数与字面量比较合法）。`groupedCycleIssues`：组拼 `GroupQuery` 走 `PaginateGrouped`，行序列化沿用同一个 `serializers.Issue`；子分组 key 不支持也整体退化平铺 |
+| `internal/handlers/cycle/issue.go` | `IssuesList` 读 `group_by`/`sub_group_by`：两者相等 → 400（上游 `CycleIssueViewSet.list` 同文报错）；`group_by` 非空且受支持 → 分组信封；不支持 → 原样走平铺路径（L-6 契约：fallback 而不是 500）。无参数路径字节不动 |
+| `internal/serializers/pagination.go` | 共享分组助手加子分组：`GroupQuery` 增 `SubGroupedBy`/`SubGroupKeys`/`SubGroupFilter`（空 = 行为与之前逐字节相同）；`GroupBucket.Results` 改 `any`（子分组模式下是嵌套桶 map）；新增 `GroupBuckets` 有序 map（自定义 `MarshalJSON`，encoding/json 会对普通 map 按字母排序、打乱上游的展示顺序）。子分组语义对齐 `SubGroupedOffsetPaginator.__get_field_dict`：组级 `total_results` = 组内全量计数；每组只 seed **实际有行**的子组（空组输出 `"results": {}`）；`total_pages`/`next_page_results` 按 (组,子组) 格子最大计数算 |
+| `internal/handlers/cycle/grouping_test.go`（新） | 7 条测试：state+priority 双层（嵌套/桶序/`total_results`/空格子省略/空串 priority 落 none）、单层 state（空组仍出现且 `results: []`）、`state__group` 固定组序、无参数平铺信封不变、未知 key 退化平铺、group==sub 400、priority 固定组序 |
+
+**响应形状（逐字段核对过的契约）**
+
+上游权威 = `apps/api/plane/utils/paginator.py`（Grouped/SubGroupedOffsetPaginator）+
+`plane/utils/grouper.py`（`issue_group_values` / `issue_on_results`）；前端交叉验证 =
+`packages/types/src/issues/issue.ts` 的 `TIssueResponseResults` + `store/issue/helpers/base-issues.store.ts`
+的 `processIssueResponse`（前端只按 group id 取键、读每桶的 `results`/`total_results`，
+组元数据（state 名/色）由 states 接口另行提供——**组桶里不塞组元数据，与上游一致**）：
+
+```
+顶层（与平铺信封同键）：grouped_by / sub_grouped_by / total_count / next_cursor /
+                        prev_cursor / next_page_results / prev_page_results /
+                        count / total_pages / total_results / extra_stats
+grouped_by = "state_id"，sub_grouped_by = null 或 "priority"（回显请求参数原值）
+results = {                                   // 有序对象：state 按 sequence，priority/state__group 按上游固定序
+  "<state uuid>": {                           // 每个声明的组都出现（含空组）
+    "total_results": <组内全量计数>,
+    "results": [ <Issue 序列化行（与平铺完全同形）> … ]      // 仅 group_by 时
+                | { "<priority>": { "results": […], "total_results": <格子全量计数> } }
+                  // 带 sub_group_by 时：只出现有行的子组；空组 → {}
+  }, …
+}
+```
+
+**验收（`go test -count=1 ./...` 31 包全 ok；`gofmt -l internal/` 空；`go vet ./internal/...` 干净）**
+
+| 验证项 | 结果 |
+|---|---|
+| `?group_by=state_id&sub_group_by=priority` | ✅ `grouped_by="state_id"`、`sub_grouped_by="priority"`；组键按 `sequence` 序（Todo<Blocked<Done）；组内子组按 `["low","medium","high","urgent","none"]` 序且只含有行格子；`total_results` 组级=2（跨子组合计）、格子级=1；issue 行是同一条 `serializers.Issue` 序列化路径 |
+| `?group_by=state_id`（单层） | ✅ `sub_grouped_by=null`；三个 state 全出现，无行的组 `results: []` / `total_results: 0` |
+| `?group_by=state__group` | ✅ 桶键恰为 5 个固定组且按上游顺序；issue 落进 state 的 group |
+| `?group_by=priority` | ✅ 桶键 `low…none` 五个全出现、按固定序；空串 priority 落 `none` 桶 |
+| 无参数 / `?group_by=&sub_group_by=` | ✅ 平铺信封：`grouped_by=null`、`results` 是**数组**、行集不变（既有 filter 测试全部照常通过） |
+| 未知 key（`assignees__id`、`bogus`、`state_id&sub_group_by=labels__id`） | ✅ 200 + 平铺信封（`grouped_by=null`），不是 500、不是半分组形状 |
+| `group_by=priority&sub_group_by=priority` | ✅ 400 `"Group by and sub group by cannot have same parameters"`（上游同文） |
+| 反向验证 | ✅ 见下方逐条（实测） |
+
+**反向验证（把实现改坏 → 哪条测试 FAIL；已实际注释分支跑过一轮）**
+
+把 `issue.go` 里整段分组分支删掉（恢复 L-6 之前的行为）→
+`TestIssuesListGroupedByStateAndPriority` / `TestIssuesListGroupedByStateOnly` /
+`TestIssuesListGroupedByStateGroup` / `TestIssuesListPriorityGroupOrder` /
+`TestIssuesListEqualGroupAndSubGroup` 全部 FAIL（响应退回 `grouped_by=null`、
+`results` 数组，400 变 200）；`TestIssuesListFlatWithoutGroupBy` /
+`TestIssuesListUnknownGroupByFallsBackFlat` 仍 PASS（证明平铺路径未受影响）。
+更细粒度：只删 `issueGroupKeys` 的 priority 空串兜底 OR →
+`TestIssuesListGroupedByStateAndPriority` 的 "Todo/none" 断言 FAIL（空串 issue
+无桶可落）；`GroupBuckets.MarshalJSON` 换回普通 map → 组序断言 FAIL（字母序）。
+
+**风险/已知限制**：`labels__id`、`assignees__id`、`target_date` 等分组 key 未实现
+（按契约退化平铺，不报错）；分组模式下分页按"每桶一页"切（与共享助手既有语义
+一致，上游 GroupedOffsetPaginator 的 row_number 窗口同义）；`extra_stats` 恒 null
+（上游也未给该视图实现）。
 
 ---
 
-### L-7 · 最近访问（`user_recent_visits`）
+### L-7 · 最近访问（`user_recent_visits`） ✅ 已验收（2026-10-25）
 
 **现象**：侧边栏 / 命令面板的「最近访问」永远空。
 **证据**：`internal/handlers/view/recent.go:34`、`view/view.go:647` 只读。
@@ -575,14 +632,59 @@ GET …/users/notifications/            # → 1 条 {"entity_name":"issue","trig
 （`user, entity_name, entity_identifier, project, visited_at`）。
 **用 upsert 而不是 insert**，否则每次打开都新增一行。
 
-**验收**：打开 3 个工作项 → `GET …/recent-visits/` 返回 3 条且按 `visited_at` 倒序；
-重复打开同一个 → 仍是 3 条（`visited_at` 更新）。
+**实际实现（2026-10-25）**
 
-**风险**：低。写放大（每个详情页一次 upsert），可以只在 `visited_at` 距今 > 60s 时写。
+| 文件 | 说明 |
+|---|---|
+| `internal/handlers/view/recent.go` | 新增导出助手 `RecordVisit(app, user, workspaceID, projectID, entityName, entityUUID)`：先查 `(user, entity_name, entity_identifier, deleted_at='')`，命中且 `visited_at` 距今 < 60s 直接返回（写节流，卡片明示许可）；命中且过期 → 原地 `Save`（`visited_at` 是 `OnUpdate` autodate 列，保存即刷新）；未命中 → 插入新行。`entity_identifier` 写 **Plane UUID**（读侧 `FindByUUID` 与序列化器 `recentVisitEntityData` 都按它解析）；首访的 `visited_at` 必须 `SetRaw` 写入——autodate 字段的 `record.Set` 被 noopSetter 吞掉（OnCreate=false）。全程错误只记日志不外抛（同 `contain()` 的 D-12 前提 3），连 panic 都 recover 掉，保证 GET 永不因此失败 |
+| `internal/handlers/issues/issues.go` | `Detail`（GET …/issues/{pk}/）在 `issue == nil → 404` 分支之后、200 JSON 之前调 `view.RecordVisit(..., "issue", serializers.UUID(issue))` |
+| `internal/handlers/page/page.go` | `Detail`（GET …/pages/{page_id}/）在 `guestBlocked` 之后、200 JSON 之前调 `view.RecordVisit(..., "page", serializers.UUID(page))`。页面详情实际只有这一个 handler 路径（`findPage` 已内置可见性过滤，私有页对非拥有者即 404，天然不会记录） |
+| `internal/handlers/issues/recent_test.go`（新） | 3 条测试：3 个详情 GET → 3 行且 wire 顺序 `visited_at` 倒序、`entity_data` 非空；节流窗口内重访不加行不动时间戳、SQL 层回拨 2 分钟后再访刷新；404 不记录 |
+| `internal/handlers/page/recent_visit_test.go`（新） | 页面详情 GET → 1 行（`entity_name=page`、UUID/`project` 正确）；节流内重访仍是 1 行；私有页 404 不记录 |
+
+**契约核对（前端 `plane-preview/apps/web/`）**：`services/workspace.service.ts:344`
+`fetchWorkspaceRecents` → `TActivityEntityData[]`（`packages/types/src/home.ts`），
+过滤 `entity_name ∈ {issue, page, project, workspace_page}` 且 `entity_data`
+非空；`entity_identifier` 是实体的 Plane UUID——与读侧
+`recentVisitEntityData` 的 `FindByUUID` 一致（已核对，不是 PocketBase 记录 id）。
+读接口 `RecentVisitsList` 本就按 `-visited_at` 排序（`recent.go` 的 sort 参数），
+无需修排序。
+
+**验收（`go test -count=1 ./...` 31 包全 ok；`gofmt -l internal/` 空；`go vet ./internal/...` 干净）**
+
+| 验证项 | 结果 |
+|---|---|
+| 打开 3 个不同 issue 的详情 | ✅ `user_recent_visits` 恰 3 行，`entity_name=issue`、`entity_identifier`=各 issue Plane UUID、`project`/`workspace` 已填 |
+| `GET …/recent-visits/` 顺序 | ✅ 按访问时间倒序（最后访问的排第一），且每条 `entity_data` 非空（前端 `filter(recent => recent.entity_data)` 不会滤掉） |
+| 60s 节流窗口内重访同一 issue ×2 | ✅ 仍是 3 行；该行 `visited_at` 逐字节不变 |
+| >60s 过期后再访 | ✅ 行数仍 3（upsert 不是 insert），`visited_at` 从回拨值刷新为当前时间（测试在 SQL 层回拨 2 分钟，不依赖拦截器语义——见 `docs/06-PITFALLS.md` D-19） |
+| 404 的 issue 详情 GET | ✅ 0 行新增（记录只在 200 路径） |
+| 页面详情 GET / 私有页 404 | ✅ 公开页 1 行 `entity_name=page`；重访不加行；私有页 404 不记录 |
+| 写失败不影响 GET | ✅ `RecordVisit` 查找/保存错误与 panic 全部吞掉只记日志（实现注释 + D-12 前提 3） |
+| 反向验证 | ✅ 见下方逐条 |
+
+**反向验证（把实现改坏 → 哪条测试 FAIL）**
+
+| 改动 | 失效测试 |
+|---|---|
+| 删掉 `issues.Detail` 里的 `view.RecordVisit(...)` 调用 | `TestDetailRecordsRecentVisitsOrdered` / `TestDetailRevisitThrottledThenRefreshed`（实测 FAIL，0 行） |
+| 把 upsert 的"先查后写"改成无条件 insert（去掉 `FindFirstRecordByFilter` 分支） | `TestDetailRevisitThrottledThenRefreshed`（重访后行数 3→5，≠3） |
+| 去掉 60s 节流比较（命中即 Save） | `TestDetailRevisitThrottledThenRefreshed`（窗口内重访 `visited_at` 被刷新，前后值不等） |
+| 插入路径改用 `row.Set("visited_at",…)` 而非 `SetRaw` | `TestDetailRecordsRecentVisitsOrdered`（首访行 `visited_at` 为空，wire 顺序断言失效） |
+| 删掉 `page.Detail` 里的调用 | `TestDetailRecordsPageVisit`（0 行 ≠ 1） |
+| 把记录挪到 404 分支之前（`issue == nil` 也记） | `TestDetailNotFoundRecordsNothing`（404 后 1 行 ≠ 0） |
+
+**已知限制**：60s 窗口内的重访**不刷新** `visited_at`（对上游"每次都更新"的有意
+偏离，卡片明示许可，换来每个详情页至多每分钟一写）；查询-再插入在并发首访下
+理论上可产生两行——`user_recent_visits` 无唯一约束（spec §3.13 REVIEW 的既有
+决定），单用户点击场景不构成实际风险；`entity_name=project`（项目详情页）不在
+本卡范围，目前仍无写入。
+
+**风险**：低。写放大已由 60s 节流约束（每个详情页每用户每分钟至多一次 upsert）。
 
 ---
 
-### L-8 · 公共 API 文档页
+### L-8 · 公共 API 文档页 ✅ 已验收（2026-10-25）
 
 **现象**：`/api/v1/` 的 Swagger/ReDoc 页只有一行占位文字。
 **证据**：`internal/handlers/publicapi/publicapi.go:104-105` 两个 `placeholder` HTML。
@@ -592,9 +694,51 @@ Swagger UI / ReDoc 的 CDN 资源引进去即可；**离线部署不能依赖 CD
 所以优先做"零依赖"版本：一个内嵌的 HTML 用 `redoc.standalone.js`（打包进二进制）
 或干脆把 schema 渲染成静态 HTML 表格。
 
-**验收**：浏览器打开 `/api/v1/` 能看到分组与端点列表（截图 + DOM 断言，不接受"200 就通过"）。
+**实际实现（2026-10-25）—— 选了静态 HTML 表格方案，未引入 ReDoc**
 
-**风险**：低。注意 CSP / 安全头不要放开过头。
+方案取舍：`redoc.standalone.js` 约 2 MB，无法离线获取并整包提交进仓库，
+且会让单二进制膨胀约 5%；而渲染成服务端静态表格**完全不需要 JS**，
+浏览器直开、无任何外部请求（连字体和 CSS 文件都没有，样式内联在一个
+`<style>` 里），CSP 无需放开。ReDoc 对一个只读端点清单页没有增益，
+故选静态表。页面由**路由表数据**（`docEndpoints`，151 条）渲染，数据
+与 `internal/router/publicapi.go` 的注册一一对应，由测试强制同步。
+
+| 文件 | 说明 |
+|---|---|
+| `internal/handlers/publicapi/docs.go`（新） | 端点表 `docEndpoints`（method/path/group/auth/description，151 条，覆盖全部注册路由，含 `work-items`/`issues` 双别名与按 base 展开的子资源）+ `renderDocsHTML()` 零依赖渲染（分组 section、方法徽标配色、深色模式跟随系统）+ `Docs` handler。渲染结果进程启动时算一次（表是静态的） |
+| `internal/handlers/publicapi/publicapi.go` | 删除 `swaggerHTML`/`redocHTML` 两个占位常量；`SchemaUI`（`/schema/swagger-ui/`、`/schema/redoc/`）改为返回同一份文档页（无 JS，swagger-ui 壳只是空诺）。路由与安全头不变 |
+| `internal/handlers/publicapi/docs_test.go`（新） | 2 条测试（见验收） |
+| `internal/router/publicapi.go` | **越界 1 行（明报）**：`api.GET("/{$}", h.Docs)` —— 卡片与验收都要求浏览器打开 `GET /api/v1/` 见到文档页，而 `/api/v1/` 根此前没有任何路由（404），handler 包无法自行注册路由，这 1 行是达成验收的最小改动 |
+
+**验收（`go test -count=1 ./...` 全部包 ok；`gofmt -l internal/` 空；`go vet ./internal/...` 干净）**
+
+| 验证项 | 结果 |
+|---|---|
+| `GET /api/v1/` | ✅ 200，`Content-Type: text/html; charset=utf-8`，含文档标记 `plane-pocketbase public api docs (L-8)` |
+| 分组与端点列表 | ✅ 18 个分组（Meta/Users/Assets/Workspace/…/Attachments），151 行 = 151 条注册路由，每行 method 徽标 + path + auth（`public` 或 `X-Api-Key`）+ 一句话说明 |
+| 零外部请求（硬性） | ✅ 页面无任何 `http(s)://` 子串、无 `<script`/`<link`/`src=`/CSS `url(`；字体走系统栈；CSP 无需改动（`/api/v1` 本就无全局 CSP 中间件，安全头仅挂在 `/spaces` 静态挂载上） |
+| 同步性（防fantasy list） | ✅ `TestDocsTableMatchesRouterRegistry` 用 go/ast 解析 `internal/router/publicapi.go`（含 `for _, base := range []string{"work-items","issues"}` 循环展开），重建注册表并与 `docEndpoints` 做 **1:1 双向比对**——新增公开路由不补文档 → FAIL；文档里写了没注册的路由 → 同样 FAIL。实测曾抓出 100+ 条漏 `{$}` 锚点的表项 |
+| 占位符清除 | ✅ `publicapi.go` 两个 placeholder 常量已删，`/schema/swagger-ui/`、`/schema/redoc/` 返回真文档页 |
+| 二进制体积 | ✅ 40,369,152 → 40,404,992 字节（**+35,840 B ≈ +0.09%**；静态方案 vs ReDoc 方案 +2 MB） |
+
+**反向验证（把实现改坏 → 哪条测试 FAIL）**
+
+| 改动 | 失效测试 |
+|---|---|
+| 在 `internal/router/publicapi.go` 注册一个新公开路由、不给文档表加条目 | `TestDocsTableMatchesRouterRegistry`（"registered public route … has no docs entry"） |
+| 从文档表删掉任意一条已有路由 | 同上（双向比对：1:1 计数断言 `151 vs 150`） |
+| 文档表路径少写 `{$}` 锚点（与注册不一致） | 同上（实测：sed 漏改时抓出 100+ 条） |
+| 给页面加 `<script src="https://cdn…">` 或外链字体 | `TestDocsPageServesEveryRegisteredRoute`（"found `http(s)://`/`<script`"） |
+| 渲染漏掉分组/行（改坏 `renderDocsHTML`） | 同上（行数 ≠ len(docEndpoints)，或端点 path 缺失） |
+| 把 `Docs` handler 改回占位文本 | 同上（marker / 行数断言 FAIL） |
+
+**已知限制**：页面是端点**清单**而非交互式 API explorer（请求参数/响应体
+schema 不在页面上——`/api/v1/schema/` 仍是 OpenAPI 桩，完整 schema 属于
+既有的独立缺口，不随本卡扩大范围）；`/schema/swagger-ui/`、`/schema/redoc/`
+别名现返回同一静态页（无 JS，swagger-ui 壳无意义）。
+
+**风险**：低。纯新增页面 + 一行路由注册；鉴权语义未动（`/api/v1/` 与
+`/schema/*` 是仅有的无 key 可访问路由，只暴露路径清单，无数据）。
 
 ---
 
@@ -658,18 +802,35 @@ PATCH …/projects/<p>/ {"estimate":"<est-uuid>"}   # → 200，读回生效
 
 ---
 
-### L-10 · 死表与文档一致性
+### L-10 · 死表与文档一致性 ✅ 已验收（2026-10-25）
 
 **现状**：15 张业务表从未被 Go 引用（另 2 张 `sqlite_stat*` 是 SQLite 自己的统计表）。其中**真正没用**的：
 
 | 表 | 判断 |
 |---|---|
-| `descriptions` / `issue_versions` / `issue_attachments` / `issue_blockers` / `project_deploy_boards` | 上游遗留表；本项目用别的表代替（`issue_relations` / `file_assets` / `deploy_boards`） |
-| `teams` / `workspace_themes` / `issue_types` / `project_issue_types` | 上游功能，本项目**未纳入**，且前端不调用 |
-| `accounts` / `api_activity_logs` / `email_notification_logs` | OAuth / API 审计 / 邮件日志（既定决策：邮件走文件） |
+| `descriptions` / `description_versions` / `issue_versions` / `issue_attachments` / `issue_blockers` / `project_deploy_boards` | 上游遗留表；本项目用别的表代替（`issue_comments` 列 / `issue_description_versions` / `file_assets` / `issue_relations` / `deploy_boards`） |
+| `teams` / `workspace_themes` / `issue_types` / `project_issue_types` / `project_member_invites` / `project_public_members` | 上游功能，本项目**未纳入**，且前端不调用 |
+| `api_activity_logs` / `email_notification_logs` | API 审计 / 邮件日志（既定决策：邮件走文件） |
+
+> 上面这张表是验收时**修正后**的版本：原卡把 `accounts` 列为死表是错的——
+> `GET /api/users/me/accounts/` 真读它（`internal/handlers/users/invitations.go:45`）；
+> 原卡还漏了 `description_versions` / `project_member_invites` / `project_public_members`。
+> 实测死表 **14 张**（12 − 1 + 3）。
 
 **建议**：不要删表（迁移里删表风险大于收益），只在 `docs/07` 里加一张
 "已知未使用表"清单，避免下一个 agent 又把它们当成缺口去实现。
+
+**验收（2026-10-25，全部独立复核，未采信原卡自述）**
+
+| 验证项 | 结果 |
+|---|---|
+| 从 `pb_migrations/` 重新导出全部 collection 名 | ✅ 81 个 `NewBaseCollection` 名字逐一过 grep（`docs/07` §7.1 附完整命令） |
+| 对每张候选表统计 `internal/` + `main.go` 引用 | ✅ 14 张零引用（含测试也零引用）：12 张零命中，`descriptions` / `project_deploy_boards` / `description_versions` 仅注释命中，排除注释后为 0 |
+| 与原卡对账 | ✅ 原卡 12 张列表 − `accounts`（活表）+ 3 张漏列 = 14 张；原卡"15"按 14 修正（`docs/07` §7.1 末尾有对账行） |
+| 替代表真实性抽查 | ✅ `deploy_boards`（`projects/deploy_boards.go` 7 处真代码）、`file_assets`（`asset/asset.go`）、`issue_relations`（`issues/wave2.go`）、`issue_description_versions`（`hooks/version.go`）均非注释引用 |
+| `project_deploy_boards` 被 `deploy_boards` 取代 | ✅ 上游源码本就标 `DEPRECATED TODO`（spec 957 锚点）；全仓唯一命中是 doc 注释（`serializers/projects.go:13`），非代码 |
+| 反例防误判 | ✅ `accounts`：3 处命中全为真代码（handler + 路由 + 测试），死表判定方法必须"命中>0 逐条打开看"，见 `docs/07` §7.1 反例清单 |
+| 不动 Go 代码 / 迁移 | ✅ 本卡只改 `docs/07` / `docs/11`；`go build ./...` 通过 |
 
 ---
 
@@ -713,7 +874,7 @@ issues 表被写 ──┬─→ issue_assignees        ✅ handler 里手写
 | 邮件真实投递 | 既定决策：写日志文件（`email_notification_logs` 保持空） |
 | 多实例横向扩展 | 本项目目标就是单二进制；跨进程总线不在范围内 |
 | 性能压测 / 索引调优 | 约定不做（数据量级不构成瓶颈） |
-| 删死表 | 迁移删表风险 > 收益，改为文档登记（L-10） |
+| 删死表 | 迁移删表风险 > 收益，改为文档登记（~~L-10~~ ✅ 已登记：`07` §7.1） |
 
 ---
 
@@ -733,7 +894,7 @@ L-6 / L-7 / L-8 ── 独立
 
 1. ~~**L-5**~~ ✅ 已完成（2026-10-24）→ 2. ~~**L-1**~~ ✅ 已完成（2026-10-24）→
 3. ~~**L-2**~~ ✅ 已完成（2026-10-24）→ 4. ~~**L-11**~~ ✅ 已完成（2026-10-24）→
-5. **L-3**（复用钩子）→ 6. **L-4**（最大）→ 7. L-6 / L-7 / L-8 / L-10（按需）。
+5. **L-3**（复用钩子）→ 6. **L-4**（最大）→ 7. L-6 / L-7 / L-8（按需）；~~L-10~~ ✅ 已完成（2026-10-25，死表登记见 `07` §7.1）。
 
 每个任务完成后：更新本文件的**状态列**，并在 `docs/10-REMAINING-WORK.md`
 追加一节实施记录（格式照 §3.3–§3.5）。

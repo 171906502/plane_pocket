@@ -91,18 +91,14 @@ func (h *Handler) Schema(e *core.RequestEvent) error {
 	return e.JSON(http.StatusOK, doc)
 }
 
-// SchemaUI serves the swagger-ui / redoc HTML shells.
+// SchemaUI serves the swagger-ui / redoc HTML shells. L-8: both now serve the
+// self-contained docs page rendered from the route table (docs.go) — the old
+// one-line placeholders are gone. No JS is needed, so a swagger-ui shell would
+// be an empty promise; the grouped table works for both aliases.
 func (h *Handler) SchemaUI(e *core.RequestEvent) error {
-	if strings.HasSuffix(e.Request.URL.Path, "redoc") {
-		e.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
-		return e.String(http.StatusOK, redocHTML)
-	}
 	e.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
-	return e.String(http.StatusOK, swaggerHTML)
+	return e.String(http.StatusOK, renderedDocsHTML)
 }
-
-const swaggerHTML = `<!DOCTYPE html><html><head><title>Plane API</title></head><body><p>Swagger UI placeholder — see /api/v1/schema/ for the OpenAPI document.</p></body></html>`
-const redocHTML = `<!DOCTYPE html><html><head><title>Plane API</title></head><body><p>ReDoc placeholder — see /api/v1/schema/ for the OpenAPI document.</p></body></html>`
 
 // --- Users -------------------------------------------------------------------
 

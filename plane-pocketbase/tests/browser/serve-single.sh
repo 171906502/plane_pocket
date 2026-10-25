@@ -60,12 +60,24 @@ if [ ! -f "$BIN" ]; then
   cat >&2 <<EOF
 [serve-single] FATAL: binary not found: $BIN
 
-  Build it (and rebuild after any Go change — a stale binary is the usual
-  reason "my fix does nothing"):
+  Build it (and rebuild after any Go change — a stale binary is the usual  reason "my fix does nothing"):
 
     cd "$PB" && go build -o .fe.exe .
 EOF
   exit 1
+fi
+
+# Warn, do not fail: a binary older than the newest Go source means the server
+# is about to run code that does not match the working tree. That has bitten
+# acceptance runs repeatedly (route added today, binary from yesterday →
+# "my endpoint 404s" is really "the binary is stale"). Rebuild and retry.
+if [ -z "${PLANE_BIN:-}" ]; then
+  NEWEST_GO="$(find "$PB" -maxdepth 3 -name '*.go' -newer "$BIN" -not -path '*/.scratch/*' -print -quit 2>/dev/null)"
+  if [ -n "$NEWEST_GO" ]; then
+    echo "[serve-single] WARNING: $BIN is older than $NEWEST_GO." >&2
+    echo "[serve-single]          The server will run stale Go code. Rebuild:" >&2
+    echo "[serve-single]            cd $PB && go build -o .fe.exe ." >&2
+  fi
 fi
 
 # Warn, do not fail: the bundle may legitimately have been built for another

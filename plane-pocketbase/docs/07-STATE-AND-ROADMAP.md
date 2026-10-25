@@ -397,6 +397,69 @@ grep -n "<功能名>" spec/exclusions.md
 > `spec/schema-spec.md` 把它们标为 `RECOMMENDED EXCLUDE`，
 > 但**实例初始化流程需要它们**，所以实际实现了。
 
+### 7.1 已知未使用表（死表登记 · L-10，2026-10-25 实测）—— **不要重新实现**
+
+下表 **14 张业务表在 Go 代码里零引用**（`internal/` + `main.go`，注释除外；验证方法见本节末尾）。
+它们**不是功能缺口**。表保留在 schema 里（迁移删表风险 > 收益，见 `docs/11` §5），
+但没有任何端点、handler 或测试会碰它们。
+如果你认为某个功能缺了，**先查下表第三列**——多数情况是本移植有意的替代或裁剪，
+不是"没做到"。要动工前先更新 `spec/exclusions.md` 和本节。
+
+**(a) 被别的表取代**
+
+| 表 | 上游模型（`spec/schema-spec.md` `MODEL:` 锚点） | 本移植的替代 | 替代实现位置 |
+|---|---|---|---|
+| `issue_attachments` | `IssueAttachment`（1307） | 附件统一走 assets-v2 通道 | `file_assets`（`internal/handlers/asset/asset.go`） |
+| `issue_blockers` | `IssueBlocker`（1236） | 阻塞关系并入统一关系表 | `issue_relations` + `relation_type`（`internal/handlers/issues/wave2.go`） |
+| `issue_versions` | `IssueVersion`（1452） | 版本历史只做描述版本 | `issue_description_versions`（`internal/hooks/version.go`，L-3） |
+| `descriptions` | `Description`（1909） | 上游把评论富文本拆成 1:1 卫星表；本移植直接把 `comment_html/json/stripped` 存在 `issue_comments` 自己的列上 | `issue_comments` 列（有意偏离 spec §3.6 的镜像要求） |
+| `description_versions` | `DescriptionVersion`（1927） | 同上；评论不另存历史版本 | `issue_description_versions`（仅 issue 描述） |
+| `project_deploy_boards` | `ProjectDeployBoard`（957，上游标 `DEPRECATED TODO`） | 上游自己已用 DeployBoard 取代 | `deploy_boards`（`internal/handlers/projects/deploy_boards.go`） |
+
+**(b) 上游功能未纳入本切片（且前端不调用）**
+
+| 表 | 上游模型 | 为什么没实现 |
+|---|---|---|
+| `teams` | `Team`（737） | 上游 v1.4.2 本来就是休眠功能——spec 注明"not referenced by any view or serializer" |
+| `workspace_themes` | `WorkspaceTheme`（754） | 主题功能，前端无调用 |
+| `issue_types` / `project_issue_types` | `IssueType` / `ProjectIssueType`（1129 / 1149） | 工作项类型未纳入。注意：`projects.is_issue_type_enabled` **开关字段已移植**（`internal/handlers/projects/projects.go:170`）但背后无表——开关存在 ≠ 类型可用，不要只接开关 |
+| `project_member_invites` | `ProjectMemberInvite`（913） | 项目级邀请行：本移植邀请走 `workspace_member_invites`，接受走 `ProjectInvitations` 直接入项（`internal/handlers/users/invitations.go:315`），没有任何端点持久化这张表。接受路径已实现，缺的是"创建"侧，属范围裁剪 |
+| `project_public_members` | `ProjectPublicMember`（975） | 公开项目成员白名单边表；Space 公开访问改走 `deploy_boards` 发布路径（`internal/handlers/space/space.go:30`） |
+
+**(c) 既定决策不实现**
+
+| 表 | 上游模型 | 决策依据 |
+|---|---|---|
+| `api_activity_logs` | `APIActivityLog`（651） | API token 审计管道未纳入本切片（无端点读写）；要加先补 `spec/exclusions.md` |
+| `email_notification_logs` | `EmailNotificationLog`（2112） | **不发真邮件**——既定决策：验证码/通知写日志文件（`PLANE_MAGIC_LOG`，`docs/04` N-5；`docs/10` §P3），此表保持空 |
+
+**怎么复核"一张表是不是死的"**（本节登记时实际执行的命令）：
+
+```bash
+cd plane-pocketbase
+# 1) 从迁移导出全部 collection 名
+grep -hoE 'NewBaseCollection\("[a-z_]+"\)' pb_migrations/*.go | sed 's/.*("//;s/")//' | sort -u
+# 2) 对每个名字统计 Go 代码引用（含注释），为 0 即死表候选
+for t in <名字列表>; do printf "%s " $t; \
+  grep -rn "$t" --include='*.go' internal/ main.go | wc -l; done
+# 3) 命中 > 0 的逐条打开看：是注释、还是真代码？
+grep -rn "<表名>" --include='*.go' internal/ main.go | grep -vE '//|/\*'
+```
+
+**三个反例（说明为什么第 3 步不可省）**：
+
+- `accounts` 看似死表（OAuth 未纳入的叙事），实际是**只读活表**：
+  `GET /api/users/me/accounts/` 在 `internal/handlers/users/invitations.go:45` 真查它
+  （路由 `internal/router/users.go:31`，测试 `config/wave2c_test.go` 有数据断言）。
+  **L-10 任务卡把它列错了**——本节已剔除。
+- `project_deploy_boards` 全仓 grep 命中 1 处，但那是 doc 注释
+  （`internal/serializers/projects.go:13`）；排除注释后为 0，才是死表。
+- `draft_issue_*` 四张：字面量离写入远（经 `createJoin` 辅助函数），
+  naive 窗口扫描会误判为只读（`docs/11` §1 轴 2 的既有警告）。
+
+**对账**：L-10 卡片写"15 张"，实测 **14 张** = 卡片所列 12 张 − `accounts`（活表）
++ `description_versions` / `project_member_invites` / `project_public_members`（卡片漏列）。
+
 ---
 
 ## 8. 文档维护约定

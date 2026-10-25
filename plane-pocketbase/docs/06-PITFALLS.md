@@ -1791,6 +1791,24 @@ L-3 恢复页面版本时两个连在一起的坑：
 **有意**再记一版（上游同语义）；因为版本写在未被监听的 `page_versions`，
 链条到那里就停，不会循环。
 
+### D-19 ⭐⭐ autodate 列：`record.Set` 被静默吞掉，裸 Save 会自动刷新时间戳
+
+`user_recent_visits.visited_at` 这类 **autodate 字段**（L-7 实测固化，
+探针：create 后列为空 / SetRaw 回拨被尊重 / 裸 Save 刷新）有三个反直觉行为，
+写错不报错、只是"没写"或"时间悄悄变了"：
+
+1. **`record.Set("visited_at", …)` 是 no-op**。autodate 字段的 `FindSetter`
+   对自己的名字返回 `noopSetter`，`Set` 先查 setter 再落列——所以 OnCreate=false
+   的列（`visited_at` 只开 `OnUpdate`）首次插入时列是**空的**，必须
+   `record.SetRaw("visited_at", …)` 才真正写进去。
+2. **裸 Save（不带 SetRaw）会把 OnUpdate 列刷新为 now**。拦截器发现
+   `当前值 == Original()`（没动过）就自动盖 now——这正是 RecordVisit 重访路径
+   依赖的性质（命中节流过期分支时裸 Save 一次即是时间戳刷新）；反过来说，
+   **为了别的原因 load-and-save 这种记录，也会顺手把时间戳冲掉**，要留心。
+3. **`SetRaw` 一个与 Original 不同的值则被尊重**（拦截器只盖"没动过"的值），
+   所以记录层也能回拨；测试里用 SQL 层 UPDATE 回拨只是更直白、不依赖这条
+   拦截器语义。
+
 ---
 
 ## E 类 · 测试链路

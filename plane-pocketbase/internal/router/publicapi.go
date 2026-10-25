@@ -18,6 +18,10 @@ func RegisterPublicAPI(e *core.ServeEvent, app core.App) error {
 	a := asset.New(app)
 	api := e.Router.Group("/api/v1").BindFunc(middleware.APIKey(app))
 
+	// L-8: zero-dependency docs page at the API root (cards/acceptance
+	// require GET /api/v1/ to render the endpoint docs, not a 404).
+	api.GET("/{$}", h.Docs)
+
 	// Schema (docs).
 	api.GET("/schema/{$}", h.Schema)
 	api.GET("/schema/swagger-ui/{$}", h.SchemaUI)

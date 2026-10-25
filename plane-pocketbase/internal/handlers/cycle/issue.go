@@ -15,9 +15,12 @@ import (
 // IssuesList serves GET …/cycles/{cycle_id}/cycle-issues/ (CycleIssueViewSet.list).
 // It returns the cursor-paginated issue envelope (`TIssuesResponse`).
 //
-// Grouping (`group_by`/`sub_group_by`) is not implemented: the flat envelope is
-// returned regardless, which is what the endpoint produces when no grouping is
-// requested. ADMIN/MEMBER only, matching the Django decorator.
+// With `group_by` (optionally `sub_group_by`) the grouped envelope is returned
+// instead — see groupedCycleIssues. Supported grouping keys: state_id,
+// priority, state__group (the ones this port's boards can request); an unknown
+// key degrades to the flat envelope, matching the no-grouping response rather
+// than erroring. group_by == sub_group_by is a 400, as upstream.
+// ADMIN/MEMBER only, matching the Django decorator.
 func (h *Handler) IssuesList(e *core.RequestEvent) error {
 	scope := middleware.ScopeOf(e)
 	if scope == nil || scope.Project == nil {
@@ -65,11 +68,30 @@ func (h *Handler) IssuesList(e *core.RequestEvent) error {
 	filter = filters.Apply(h.App, filter, params, scope.Project.Id, e.Request.URL.Query().Get("filters"))
 
 	perPage, cursor := serializers.ListParams(e, serializers.MaxPerPage)
+	sort := orderBy(e.Request.URL.Query().Get("order_by"))
+
+	// Grouped envelope (group_by/sub_group_by). Unknown keys fall back to the
+	// flat envelope below; equal keys are upstream's 400.
+	groupBy := e.Request.URL.Query().Get("group_by")
+	subGroupBy := e.Request.URL.Query().Get("sub_group_by")
+	if groupBy != "" && groupBy == subGroupBy {
+		return groupSubGroupEqual(e)
+	}
+	if groupBy != "" {
+		env, handled, err := h.groupedCycleIssues(scope, groupBy, subGroupBy, filter, params, sort, perPage, cursor)
+		if err != nil {
+			return err
+		}
+		if handled {
+			return e.JSON(http.StatusOK, env)
+		}
+	}
+
 	envelope, err := serializers.Paginate(h.App, serializers.ListQuery{
 		Collection: "issues",
 		Filter:     filter,
 		Params:     params,
-		Sort:       orderBy(e.Request.URL.Query().Get("order_by")),
+		Sort:       sort,
 		PerPage:    perPage,
 		Cursor:     cursor,
 	}, func(issue *core.Record) any {
