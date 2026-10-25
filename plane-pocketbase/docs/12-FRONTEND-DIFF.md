@@ -71,12 +71,33 @@ cd plane-pocketbase && bash tests/browser/build-frontends.sh
 | 方案 | 做法 | 成本 | 风险 |
 |---|---|---|---|
 | **A. 保留 2 文件补丁**（现状） | 前端编辑器把 `getDocument()` 的结果防抖回写（复用既有 `updatePageDescription` 管道） | 已完成 | 低。新增文件，不改既有交互 |
-| **B. 跑上游 `apps/live` 侧车** | 前端零改；Node 进程跑上游 live，Go 反代 `/live/*` | 中高：需实现 Django 兼容的 `pages/{id}/description/`（binary 读写 + details）与 token 校验；Redis 可选 | 中：多一个运行时；但用的是上游自己的序列化器，天然跟随升级 |
+| **B. 跑上游 `apps/live` 侧车** | 前端零改；Node 进程跑上游 live，Go 反代 `/live/*` | 低（实测见 §2.1：Go 侧只缺 1 个接口） | 中：多一个运行时；但用的是上游自己的序列化器，天然跟随升级 |
 | **C. 内嵌 JS 引擎（goja）** | Go 内嵌 `@plane/editor` 的序列化器 bundle + DOM shim | 未知：需 1–2 天 spike 判定 | 高：DOM/React 依赖，长期脆弱 |
 | **D. Go 复刻序列化器** | ygo 解码 CRDT + 手写 renderHTML | 高：~30 节点/标记、固定 class 约定、lowlight 高亮树 | 高：编辑器升级即静默漂移 |
 
-### D 的实测（2026-10-25，`.scratch/ygo-spike`）
+### 2.1 B 方案到底多一个什么进程（2026-10-25 核对源码）
 
+**一个** Node 进程，不是一套服务栈：
+
+```
+node plane-preview/apps/live/dist/start.mjs      # Hocuspocus server, PORT=3100
+```
+
+| 问题 | 实测答案 | 依据 |
+|---|---|---|
+| 要 Redis 吗？ | **不要**。`RedisManager` 全仓零引用（死代码），`.env` 里的 `REDIS_URL` 是历史遗留 | `apps/live/src/redis.ts` 无任何 import 方 |
+| 要数据库吗？ | 不要。数据全部 HTTP 回源 Go（`API_BASE_URL=http://localhost:8000`） | `src/services/page/*.service.ts` |
+| 怎么认证？ | WS 的 token 里带 `{id, cookie}`，回源时转发 `Cookie` 头；Go 的 `/api/users/me/` 已具备 | `src/lib/auth.ts:44-52`、`internal/router/users.go:15` |
+| 要哪些后端接口？ | `GET pages/{id}/`、`GET|PATCH pages/{id}/description/` **已有**；`GET pages/{id}/mentions/` **缺** | `src/services/page/core.service.ts:26-135`、`internal/router/page.go:30,58-59` |
+| Go 还要做什么？ | 只加两件事：`pages/{id}/mentions/` 接口 + `/live/collaboration` 的 WS 反代到 `127.0.0.1:3100` | — |
+
+**副作用（必须一起考虑）**：上游 live 的持久化模型是"文档状态写进 `description_binary`"，不再有 `live/` 日志目录。
+因此切 B 之后：`internal/live` 的日志/回放对 pages 不再使用，L-5 的 `live/` 备份对象也随之失效；
+但描述写入改走 `PATCH …/description/`，L-1 活动流与 L-3 版本历史的钩子仍会正常触发。
+
+如果 space 也要零改（SSR），再额外加**第二个**进程 `react-router-serve`（3002）——即"完全零改 = 2 个 Node 进程"。
+
+### D 的实测（2026-10-25，`.scratch/ygo-spike`）
 `reearth/ygo v1.54.0`（纯 Go、MIT、无 cgo）对真实 `.fe-run/live` 日志 **55/55 帧 apply 成功**，
 `GetXmlFragment("default")` 结构完整。**解码不是问题**，问题在序列化：
 
