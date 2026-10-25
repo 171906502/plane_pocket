@@ -92,6 +92,8 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
     pageId: page.id,
     initialHtml: page.description_html,
     updatePageDescription: handlers.updateDescription,
+    isEditorReady: editorReady,
+    isSynced: collaborationState?.isServerSynced ?? false,
   });
 
   const handleEditorReady = useCallback(

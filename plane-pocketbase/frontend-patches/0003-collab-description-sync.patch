@@ -1,0 +1,180 @@
+diff --git a/plane-preview/apps/web/components/pages/editor/page-root.tsx b/plane-preview/apps/web/components/pages/editor/page-root.tsx
+index 59b5480..fbf525a 100644
+--- a/plane-preview/apps/web/components/pages/editor/page-root.tsx
++++ b/plane-preview/apps/web/components/pages/editor/page-root.tsx
+@@ -12,6 +12,7 @@ import { useTranslation } from "@plane/i18n";
+ import type { TDocumentPayload, TPage, TPageVersion, TWebhookConnectionQueryParams } from "@plane/types";
+ // hooks
+ import { usePageFallback } from "@/hooks/use-page-fallback";
++import { useCollabDescriptionSync } from "@/hooks/use-collab-description-sync";
+ import type { PageUpdateHandler, TCustomEventHandlers } from "@/hooks/use-realtime-page-events";
+ import { usePagesPaneExtensions, useExtendedEditorProps } from "@/hooks/pages";
+ import type { EPageStoreType } from "@/hooks/store";
+@@ -82,6 +83,19 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
+     updatePageDescription: handlers.updateDescription,
+   });
+ 
++  // Keep description_html/json in step with the collaborative document. The
++  // collaboration server relays yjs without decoding it, so it cannot derive
++  // HTML itself (see internal/live + docs/10-REMAINING-WORK.md §3.2). Space
++  // publishing and search read description_html, hence this write-back.
++  useCollabDescriptionSync({
++    editorRef,
++    pageId: page.id,
++    initialHtml: page.description_html,
++    updatePageDescription: handlers.updateDescription,
++    isEditorReady: editorReady,
++    isSynced: collaborationState?.isServerSynced ?? false,
++  });
++
+   const handleEditorReady = useCallback(
+     (status: boolean) => {
+       setEditorReady(status);
+diff --git a/plane-preview/apps/web/hooks/use-collab-description-sync.ts b/plane-preview/apps/web/hooks/use-collab-description-sync.ts
+new file mode 100644
+index 0000000..aaa4144
+--- /dev/null
++++ b/plane-preview/apps/web/hooks/use-collab-description-sync.ts
+@@ -0,0 +1,142 @@
++import type { EditorRefApi } from "@plane/editor";
++import { convertBinaryDataToBase64String } from "@plane/editor";
++import type { TDocumentPayload } from "@plane/types";
++import { useCallback, useEffect, useRef } from "react";
++
++/**
++ * Persists the page document (`description_html`, `description_json`,
++ * `description_binary`) on every editor transaction, while the page runs in
++ * collaboration mode.
++ *
++ * Why this exists: the collaboration server (`internal/live`) relays yjs updates
++ * without decoding them, so it cannot derive HTML the way `apps/live` does when
++ * it stores a document. Everything downstream of `description_html` — publishing
++ * a page to a Space, full-text search, `description_stripped`, version history —
++ * would otherwise stay frozen at whatever the page contained before.
++ *
++ * The trigger is the same event that produces the WebSocket frame: one tiptap
++ * transaction is consumed twice, once by `ySyncPlugin` (which turns it into a
++ * yjs update) and once by `onStateChange` (which calls this hook). No polling:
++ * a write is scheduled exactly when the document changes, then coalesced.
++ *
++ * Cost is accepted on purpose: every write sends the whole document. A burst of
++ * keystrokes collapses into one request per idle period, and a write that is
++ * still in flight makes the next one wait, so the server never sees out-of-order
++ * writes and the newest content always wins.
++ */
++const DEBOUNCE_MS = 1500;
++
++type TArgs = {
++  editorRef: React.RefObject<EditorRefApi | null>;
++  /** `page.id` — undefined while the page record is still hydrating. */
++  pageId?: string;
++  /** `page.description_html` as loaded from the API; `undefined` while hydrating. */
++  initialHtml?: string;
++  updatePageDescription: (document: TDocumentPayload) => Promise<void>;
++  /** The editor instance exists and can report transactions. */
++  isEditorReady: boolean;
++  /** The relay has replayed the whole document, so its content is complete. */
++  isSynced: boolean;
++};
++
++const stripTags = (html: string) => html.replace(/<[^>]*>/g, "").trim();
++
++export const useCollabDescriptionSync = ({
++  editorRef,
++  pageId,
++  initialHtml,
++  updatePageDescription,
++  isEditorReady,
++  isSynced,
++}: TArgs) => {
++  // Last HTML that reached the server; `null` means "unknown, save next time".
++  const lastSavedHtml = useRef<string | null>(null);
++  const isSaving = useRef(false);
++  // A transaction arrived while a write was in flight: run once more when it
++  // finishes, so the newest content always wins.
++  const isPending = useRef(false);
++  const baselineHtml = useRef<string | undefined>(initialHtml);
++  baselineHtml.current = initialHtml;
++
++  /**
++   * @param allowEmpty write an empty document over a non-empty one. Only a real
++   * edit may do that (the user selected all and deleted); the write after a
++   * sync must not, or a page whose relayed document failed to arrive would be
++   * blanked on open.
++   */
++  const flush = useCallback(
++    async (allowEmpty: boolean) => {
++      const editor = editorRef.current;
++      if (!editor) return;
++      if (isSaving.current) {
++        isPending.current = true;
++        return;
++      }
++
++      const { binary, html, json } = editor.getDocument();
++      if (!html || html === lastSavedHtml.current) return;
++      if (!allowEmpty && stripTags(html).length === 0 && (baselineHtml.current ?? "") !== "") {
++        // Nothing came back from the relay although the server has content.
++        // Keep the server copy: an empty write here is data loss, not a delete.
++        console.warn("[pages] relayed document is empty but the server has content; not overwriting");
++        return;
++      }
++
++      lastSavedHtml.current = html;
++      isSaving.current = true;
++      try {
++        await updatePageDescription({
++          description_html: html,
++          description_json: json ?? {},
++          // The editor returns the yjs state update; the API stores it as a
++          // protected file. Empty means the provider is not attached.
++          description_binary: binary ? convertBinaryDataToBase64String(binary) : "",
++        });
++      } catch (error) {
++        // A locked or archived page rejects the write. Forget the optimistic
++        // value so the next edit retries instead of pretending it was stored.
++        lastSavedHtml.current = null;
++        console.error("[pages] could not persist description_html", error);
++      } finally {
++        isSaving.current = false;
++        if (isPending.current) {
++          isPending.current = false;
++          void flush(true);
++        }
++      }
++    },
++    [editorRef, updatePageDescription]
++  );
++
++  // One write per idle period — scheduled by the same event that sends the yjs
++  // frame. Leaving the page flushes whatever is still pending.
++  useEffect(() => {
++    if (!isEditorReady) return;
++    const editor = editorRef.current;
++    if (!editor) return;
++
++    let debounceTimer: number | undefined;
++    const schedule = () => {
++      window.clearTimeout(debounceTimer);
++      debounceTimer = window.setTimeout(() => void flush(true), DEBOUNCE_MS);
++    };
++
++    lastSavedHtml.current = null;
++    const stopListening = editor.onStateChange(schedule);
++    return () => {
++      window.clearTimeout(debounceTimer);
++      stopListening();
++      // Leaving the page mid-edit: one last attempt so the change is not lost.
++      void flush(true);
++    };
++  }, [editorRef, flush, isEditorReady, pageId]);
++
++  // A page whose content only lives in the collaboration log has no transaction
++  // to react to: the relay replays it before the editor exists. Sync completion
++  // is the upstream signal for "the document is now complete", so compare once
++  // there. Never writes an empty document over a non-empty one.
++  useEffect(() => {
++    if (!isEditorReady || !isSynced) return;
++    void flush(false);
++  }, [flush, isEditorReady, isSynced]);
++};
