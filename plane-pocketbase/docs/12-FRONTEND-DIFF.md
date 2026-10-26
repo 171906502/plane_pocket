@@ -277,14 +277,23 @@ bash plane-pocketbase/frontend-patches/apply.sh apply --target /path/to/fresh/cl
 `tests/frontend/verify-upstream-patches.sh`（`--no-build` 可只验补丁）：
 
 ```
-clone @ BASE.sha  →  物化 packages/i18n/locales  →  apply.sh apply --target
-  →  断言 git status 恰好是预期的 9 个文件（多一个少一个都失败）
+clone @ BASE.sha（已有克隆则 checkout -f + clean -fd 复位）
+  →  物化 packages/i18n/locales
+  →  apply.sh apply --target
+  →  断言变更集恰好是预期的 9 个文件（多一个少一个都失败）
+  →  revert（把树交回纯净，好让构建自己走 apply/build/revert）
   →  install-deps.sh（含工作区链接 + packages/* 构建）
   →  build-frontends.sh（PLANE_FE_DIR 指向克隆）
-  →  断言构建结束后树仍然是干净的（revert 生效）
+  →  断言构建结束后变更集为空（EXIT trap 真的还原了）
 ```
 
-这条链路把"补丁能否在纯净上游上重放"从口头承诺变成一条命令。
+这条链路把"补丁能否在纯净上游上重放"从口头承诺变成一条命令，实测输出
+`[verify] PASS — a clean clone + frontend-patches/ builds all three bundles`。
+
+**判定为什么不用 `git status`**：`packages/i18n/locales` 是"目录替换符号链接"，
+索引刷新在这一条上会失败，随后 git 会把**若干无关文件**的过期 stat 报成 modified
+（实测 10 个 `packages/*/package.json`，而 `git diff` 内容为空）。
+所以断言用内容级：`git diff --name-only` + `git ls-files -o --exclude-standard`。
 
 ---
 
