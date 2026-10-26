@@ -20,9 +20,11 @@
 #     on the "Plane didn't start up correctly" error boundary with zero API
 #     calls in the log.
 #  2. `APPDATA` must be exported for the Go toolchain/proxy config to resolve.
-#  3. The frontends must be launched from their own `node_modules/.bin`; the
-#     globally installed pnpm (v12) cannot satisfy the repo's pinned
-#     `packageManager: pnpm@11.10.0` and fails to bootstrap its own wrapper.
+#  3. The frontends are launched through the **root** `node_modules/.bin`, not
+#     each app's. With `--node-linker hoisted` every binary lives in the root
+#     store and the per-app `.bin` directories are symlinks pnpm cannot create
+#     on this machine (C-14). Calling the root binary from the app directory
+#     works for both linkers.
 #  4. `CODEBUDDY_SAFE_DELETE_ENABLED=0` stops react-router's typegen from
 #     tripping the sandbox bulk-delete guard.
 #
@@ -195,7 +197,7 @@ start_web() {
   (
     cd "$FE/apps/web" || { echo "[stack] FATAL: cannot cd to $FE/apps/web (web not started)" >&2; exit 1; }
     export CODEBUDDY_SAFE_DELETE_ENABLED=0
-    nohup ./node_modules/.bin/react-router dev --port 3000 > "$LOGS/web-dev.log" 2>&1 &
+    nohup "$FE/node_modules/.bin/react-router" dev --port 3000 > "$LOGS/web-dev.log" 2>&1 &
     disown
   ) || LAUNCH_FAILED=1
 }
@@ -207,7 +209,7 @@ start_admin() {
   (
     cd "$FE/apps/admin" || { echo "[stack] FATAL: cannot cd to $FE/apps/admin (admin not started)" >&2; exit 1; }
     export CODEBUDDY_SAFE_DELETE_ENABLED=0
-    nohup ./node_modules/.bin/react-router dev --port 3001 > "$LOGS/admin-dev.log" 2>&1 &
+    nohup "$FE/node_modules/.bin/react-router" dev --port 3001 > "$LOGS/admin-dev.log" 2>&1 &
     disown
   ) || LAUNCH_FAILED=1
 }
@@ -222,7 +224,7 @@ start_space() {
   (
     cd "$FE/apps/space" || { echo "[stack] FATAL: cannot cd to $FE/apps/space (space not started)" >&2; exit 1; }
     export CODEBUDDY_SAFE_DELETE_ENABLED=0
-    nohup ./node_modules/.bin/react-router dev --port 3002 > "$LOGS/space-dev.log" 2>&1 &
+    nohup "$FE/node_modules/.bin/react-router" dev --port 3002 > "$LOGS/space-dev.log" 2>&1 &
     disown
   ) || LAUNCH_FAILED=1
 }

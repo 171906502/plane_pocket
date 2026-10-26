@@ -33,7 +33,36 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PB="$(cd "$HERE/../.." && pwd)"
-FE="$(cd "$PB/../plane-preview" && pwd)"
+# PLANE_FE_DIR lets the verification script build a freshly cloned upstream tree
+# instead of the vendored one (tests/frontend/verify-upstream-patches.sh).
+FE="$(cd "${PLANE_FE_DIR:-$PB/../plane-preview}" && pwd)"
+
+# ── Frontend patches ────────────────────────────────────────────────────────
+# `plane-preview/` is a pristine upstream checkout; every local change lives in
+# frontend-patches/ and is applied only for the duration of the build. See
+# docs/12-FRONTEND-DIFF.md.
+#
+# If the tree was already patched when we started (a dev session is running),
+# leave it that way — reverting under a running `vite dev` would pull the ground
+# out from under it.
+PATCHES="$PB/frontend-patches"
+PATCH_STATE="$(bash "$PATCHES/apply.sh" status --target "$FE")"
+case "$PATCH_STATE" in
+  clean)
+    bash "$PATCHES/apply.sh" apply --target "$FE"
+    trap 'bash "$PATCHES/apply.sh" revert --target "$FE" >/dev/null' EXIT
+    ;;
+  applied)
+    echo "[build] frontend patches already applied (dev tree) — leaving them in place"
+    ;;
+  *)
+    echo "[build] FATAL: frontend patches are in a conflicting state." >&2
+    bash "$PATCHES/apply.sh" check --target "$FE" >&2 || true
+    echo "[build]        The tree was edited by hand, or it is on a different" >&2
+    echo "[build]        upstream commit than the patches were cut against." >&2
+    exit 1
+    ;;
+esac
 
 # 要在任意端口起单端口实例，改这里一个变量即可。
 BASE_URL="http://localhost:8000"
@@ -63,11 +92,29 @@ export MSYS_NO_PATHCONV=1
 
 for app in web admin space; do
   echo "[build] $app  (BASE_URL=$BASE_URL)"
+  # Build into a private temp log, then copy it into tests/logs/.
+  #
+  # Why not redirect straight at tests/logs/<app>-build.log: the redirect itself
+  # can fail with "Permission denied" when that file happens to be held open for
+  # a moment (antivirus scanning the previous run's 144 KB log, or the sandbox's
+  # write guard). That killed a whole build *after* web had already succeeded.
+  # A failed copy is now harmless: the build result is what matters, the log is
+  # a convenience.
+  build_log="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/$app-build.$$.log")"
   (
     cd "$FE/apps/$app"
     # 直接调 bin：pnpm run 会先做包管理器身份校验（见 C-14），报的是安装失败而不是构建失败。
-    ./node_modules/.bin/react-router build > "$PB/tests/logs/$app-build.log" 2>&1
-  )
+    # Root binary, not `./node_modules/.bin`: see the note in start-stack.sh
+    # (per-app .bin symlinks do not exist with the hoisted linker on Windows).
+    "$FE/node_modules/.bin/react-router" build
+  ) > "$build_log" 2>&1 || {
+    cp -f "$build_log" "$PB/tests/logs/$app-build.log" 2>/dev/null || true
+    echo "[build] FATAL: $app build failed; log follows (also in $PB/tests/logs/$app-build.log)" >&2
+    tail -40 "$build_log" >&2
+    exit 1
+  }
+  cp -f "$build_log" "$PB/tests/logs/$app-build.log" 2>/dev/null || true
+  rm -f "$build_log"
 
   dir="$FE/apps/$app/build/client"
   if [ ! -f "$dir/index.html" ]; then

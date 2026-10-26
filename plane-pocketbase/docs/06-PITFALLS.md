@@ -943,6 +943,60 @@ C: 的构成：Users 124.9 GB / Windows 25.8 / Program Files 37.7 / 回收站 9.
 > 教训：**Go 侧全绿不能证明前端可用**。`go test` / `release-check` 完全不经过 `node_modules`，
 > 所以这个洞从 10-10 搬家一直潜伏到 10-17 才被发现。
 
+#### C-14b ⭐⭐ `pnpm install` 报 `resolve the installed @pnpm/exe … os error 2`
+
+**症状**：任何 `pnpm` 命令（install、run、甚至 `-r`）开头就死：
+
+```
+Error: × resolve the installed @pnpm/exe at
+  C:\Users\cao\.pnpm\package-manager-store\v11\tmp\pnpm-engine-11.10.0-…\node_modules\@pnpm\exe
+  ╰─▶ 系统找不到指定的文件。 (os error 2)
+```
+
+**根因**：根 `package.json` 里有 `"packageManager": "pnpm@11.10.0"`。pnpm 会先把这个**精确版本**
+下载到 `%LOCALAPPDATA%\pnpm\package-manager-store` 再用它执行命令；那一步在这里完不成，
+于是所有命令都在"还没开始"时失败。
+
+**绕法**（关掉包管理器自管理，用 PATH 上的 pnpm v12，它读同一份 lockfile 没问题）：
+
+```bash
+npm_config_manage_package_manager_versions=false pnpm install --frozen-lockfile
+```
+
+已固化在 `tests/frontend/install-deps.sh`。
+
+**⚠️ 它会以三种"变形"再次出现，别以为躲过了：**
+
+1. **turbo 里**：turbo 读 `packageManager` 字段，把每个 task 跑成 `pnpm run build`，
+   于是子任务里又炸一次。变量必须在**启动 turbo 之前** export。
+2. **turbo 的 strict env**：turbo 2 默认 `envMode: strict`，子任务只拿到 `turbo.json`
+   里 allowlist 的变量，**你刚 export 的那个会被静默剥掉**。要加 `--env-mode=loose`
+   （不能改 `turbo.json` 的 `globalPassThroughEnv`——那是上游纯净树）。
+3. **⭐ `pnpm run` 会先重装整个 workspace。** 这是最要命的一条：pnpm ≥10 在跑任何
+   script 前会校验依赖树，发现"记录的安装方式 ≠ 当前配置"就**先装一遍**
+   （子进程命令行是 `pnpm install --verify-deps-before-run-install --use-stderr`）。
+   而我们偏偏是用 `--node-linker hoisted` 装的，默认配置是 `isolated` —— 于是
+   **每一次 `pnpm run` 都判定不一致、都重装**。turbo 并行跑 5 个包 = 5 个并发
+   workspace 安装抢同一把锁：
+
+   ```
+   # 实测：20 分钟零产出，5 个 pnpm install 子进程各占 100 MB 空转
+   @plane/i18n:build: cache miss, executing …
+   （之后再无输出，packages/*/dist 一个都没有）
+   ```
+
+   `npm_config_verify_deps_before_run=false` / `npm_config_node_linker=hoisted`
+   都**无效**（pnpm 12 不认这两个 env，`pnpm config get node-linker` 仍返回空）；
+   `pnpm run --help` 里也没有对应开关。
+
+**结论：不要用包管理器去跑构建脚本。** `tests/frontend/build-packages.mjs` 直接按
+依赖拓扑序遍历 `packages/*`，把 `node_modules/.bin` 放进 PATH 后执行每个包的 `build`
+脚本（脚本体内的 `pnpm run x` 就地内联展开）。没有包管理器，就没有安装。
+
+> 另一个坑：`node_modules/.bin/<tool>` 是 `/bin/sh` 脚本，`.bin/<tool>.cmd` 才是
+> Windows 入口。用 `node <shim>` 去跑会得到
+> `SyntaxError: Invalid or unexpected token`（shim 的注释头被当 JS 解析）。
+
 ---
 
 ### C-15 ⭐⭐ 残留的 `node_modules.broken-*` 目录会把 Vite 监听器拖到 OOM
@@ -1079,6 +1133,20 @@ foreach ($p in "$env:LOCALAPPDATA\pnpm","$env:USERPROFILE\.workbuddy-ai\logs","$
 
 > 教训：**"代码在 D:" 不等于"只在 D: 写盘"**。工具链的缓存、日志、快照默认都在
 > `%LOCALAPPDATA%` / `%USERPROFILE%`，要逐个显式改掉才会真正搬到 D:。
+
+**构建期把临时目录也搬到 D:**（2026-10-27 又踩一次：`pnpm install` 跑到一半
+C: 归零，bash 连 `echo` 都写不进去，报 `No space left on device`）。
+`pnpm install` / `tsdown` / `react-router build` 都会往 `%TEMP%` 写：
+
+```bash
+export TEMP='D:\ai-work\plane_pocket\_scratch\tmp'
+export TMP='D:\ai-work\plane_pocket\_scratch\tmp'
+export TMPDIR=/d/ai-work/plane_pocket/_scratch/tmp
+```
+
+**⚠️ 别在 bash 脚本运行时改那个脚本。** bash 是按**字节偏移**增量读脚本的：
+编辑后它从旧偏移继续读，会读到半行，报出像 `line 107: tree: command not found`
+这种莫名其妙的错（本次在验证脚本上真实发生过，差点被当成脚本 bug 排查）。
 
 ---
 
@@ -1322,6 +1390,48 @@ export PLANE_ADMIN_DIR="$(to_native "$ADMIN")"
 ```
 
 **判据**：看到 `PLANE_*_DIR: … has no index.html` 但文件确实在，先 `echo $MSYS_NO_PATHCONV`。
+
+---
+
+### C-22 ⭐⭐⭐ `git apply` 打补丁"成功"了但树没变（退出码 0 + `Skipped patch`）
+
+**症状**：补丁脚本打印 `applied`、退出码 0，随后构建报一个**毫不相关**的错
+（我们这里是 `[postcss] ENOENT … apps/web/@plane/editor/styles`），因为补丁根本没进去。
+
+**三个独立原因，任何一个都会造成"静默成功"：**
+
+**① 路径基准不是当前目录，而是仓库顶层。**
+`git apply` 把补丁里的 `a/apps/web/...` 解析成 **`<repo 顶层>/apps/web/...`**，
+不是 `<当前目录>/apps/web/...`。我们的树在 `<repo>/plane-preview`，所以在
+`plane-preview/` 里跑 `git apply` 时，git 去 `<repo>/apps/...` 找文件、找不到，
+于是打印：
+
+```
+Skipped patch 'apps/web/...'.
+```
+
+**并且退出码是 0**。修法：从顶层驱动，带前缀。
+
+```bash
+TOP="$(git -C "$TARGET" rev-parse --show-toplevel)"
+PREFIX="$(cd "$TARGET" && git rev-parse --show-prefix)"      # 例：plane-preview/
+( cd "$TOP" && git apply -p1 --directory="$PREFIX" "$patch" )
+```
+
+**② `.gitattributes` 里的 `-text` 会把文件标成二进制**，`git apply` 同样
+`Skipped patch` + 退出 0。用 `text eol=lf`，不要 `-text`。
+
+**③ 退出码本身不能作为证据。** 所以 `apply.sh` 每次 apply 成功后立刻反向校验：
+
+```bash
+run_apply "$p" --reverse --check || die "reported success but the tree is unchanged"
+```
+
+revert 之后做对称的正向 `--check`。这条断言才是上面两个坑的疫苗——
+**凡是"命令说成功了"的地方，都要再验一次实际状态**。
+
+**附带的坑**：`.patch` 文件本身若被 CRLF 污染，`git apply` 会因为上下文行不匹配而失败。
+本仓库 `.gitattributes` 对 `*.patch` 也强制 LF。
 
 ---
 
@@ -1997,6 +2107,10 @@ mv X "X.bak-$(date +%s)" && mkdir -p X
 | **加了 gzip 后：接口 500 响应前半截是 200 body / 前端 JSON.parse 失败** | **C-18**（错误路径要 `Discard()` 缓冲区） |
 | **压缩后客户端卡住或只读到原文件长度** | **C-18**（必须删 `Content-Length` / `Accept-Ranges`） |
 | **`/api/realtime` 不推事件了 / 视频 Range 播放坏了** | **C-18**（跳过 SSE 与 `Range`） |
+| **`pnpm` 一启动就报 `resolve the installed @pnpm/exe … os error 2`** | **C-14b**（`npm_config_manage_package_manager_versions=false`） |
+| **`pnpm run` 先重装整个 workspace / turbo 卡住 20 分钟零产出** | **C-14b 第 3 条**（别用包管理器跑构建脚本，用 `build-packages.mjs`） |
+| **`node <node_modules/.bin/xxx>` 报 `SyntaxError: Invalid or unexpected token`** | **C-14b 尾注**（那是 `/bin/sh` shim，要 `.cmd` 或直接执行） |
+| **补丁说 applied 但构建报无关错（`Skipped patch` + 退出 0）** | **C-22**（`--directory` + 反向 `--check` 自证） |
 | **代码全在 D:，C: 可用空间却一直在降** | **C-16**（pnpm store / 日志 / 安装器残留都在用户目录） |
 | `%TEMP%` 里出现 3 GB 的随机名目录 | **C-16**（VS/VS Code 安装器残留，装完可删） |
 | `.workbuddy-ai\logs` 一天涨 1 GB | **C-16**（沙箱审计日志，按天分目录，不自动清理） |

@@ -1,7 +1,7 @@
-diff --git a/plane-preview/apps/web/components/pages/editor/page-root.tsx b/plane-preview/apps/web/components/pages/editor/page-root.tsx
-index 59b5480..fbf525a 100644
---- a/plane-preview/apps/web/components/pages/editor/page-root.tsx
-+++ b/plane-preview/apps/web/components/pages/editor/page-root.tsx
+diff --git a/apps/web/components/pages/editor/page-root.tsx b/apps/web/components/pages/editor/page-root.tsx
+index 59b5480d3..fbf525a45 100644
+--- a/apps/web/components/pages/editor/page-root.tsx
++++ b/apps/web/components/pages/editor/page-root.tsx
 @@ -12,6 +12,7 @@ import { useTranslation } from "@plane/i18n";
  import type { TDocumentPayload, TPage, TPageVersion, TWebhookConnectionQueryParams } from "@plane/types";
  // hooks
@@ -30,11 +30,11 @@ index 59b5480..fbf525a 100644
    const handleEditorReady = useCallback(
      (status: boolean) => {
        setEditorReady(status);
-diff --git a/plane-preview/apps/web/hooks/use-collab-description-sync.ts b/plane-preview/apps/web/hooks/use-collab-description-sync.ts
+diff --git a/apps/web/hooks/use-collab-description-sync.ts b/apps/web/hooks/use-collab-description-sync.ts
 new file mode 100644
-index 0000000..aaa4144
+index 000000000..aaa414497
 --- /dev/null
-+++ b/plane-preview/apps/web/hooks/use-collab-description-sync.ts
++++ b/apps/web/hooks/use-collab-description-sync.ts
 @@ -0,0 +1,142 @@
 +import type { EditorRefApi } from "@plane/editor";
 +import { convertBinaryDataToBase64String } from "@plane/editor";

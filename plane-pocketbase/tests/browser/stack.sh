@@ -161,6 +161,14 @@ case "$cmd" in
     # means editing `apps/*/vite.config.ts`, so the leftovers are deleted here
     # instead. See docs/12-FRONTEND-DIFF.md (group 1).
     bash "$PB/tests/frontend/clean-stale-modules.sh" || true
+    # dev serves from source, so the frontend patches have to be in the tree for
+    # the whole session (unlike a build, which applies them and reverts). They
+    # stay applied until `frontend-patches/apply.sh revert` is run by hand.
+    if ! bash "$PB/frontend-patches/apply.sh" apply; then
+      echo "[stack] ABORT: frontend patches do not apply; refusing to start a" >&2
+      echo "[stack]        dev server that silently differs from a release build." >&2
+      exit 1
+    fi
     start_many "$@"
     ;;
 

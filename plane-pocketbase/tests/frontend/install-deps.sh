@@ -26,13 +26,32 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PB="$(cd "$HERE/../.." && pwd)"
-FE="$(cd "$PB/../plane-preview" && pwd)"
+# PLANE_FE_DIR lets the upstream-verification script install into a fresh clone.
+FE="$(cd "${PLANE_FE_DIR:-$PB/../plane-preview}" && pwd)"
 STORE="${PNPM_STORE_DIR:-D:/.pnpm-store}"
 
 echo "[deps] plane-preview -> $FE"
 echo "[deps] node-linker=hoisted  store-dir=$STORE"
 
 cd "$FE"
-pnpm install --node-linker hoisted --store-dir "$STORE" "$@"
+
+# `--frozen-lockfile` on purpose: the vendored tree must stay byte-identical to
+# upstream, and a rewritten pnpm-lock.yaml would silently undo that.
+#
+# `npm_config_manage_package_manager_versions=false` (C-14b): the project pins
+# `packageManager: pnpm@11.10.0`, and pnpm tries to download that exact version
+# into `%LOCALAPPDATA%\pnpm\package-manager-store` before doing anything. That
+# download cannot complete here, so every install died with
+# "resolve the installed @pnpm/exe … os error 2". Turning the self-management
+# off makes it use the pnpm already on PATH (v12), which handles the same
+# lockfile fine.
+npm_config_manage_package_manager_versions=false \
+  pnpm install --frozen-lockfile --node-linker hoisted --store-dir "$STORE" "$@"
+
+# pnpm cannot create the workspace symlinks here (C-14); junctions are made by a
+# separate script. Packages then have to be built once, because the apps import
+# them through their `dist/` exports.
+bash "$HERE/link-workspace-packages.sh"
+bash "$HERE/build-workspace-packages.sh"
 
 echo "[deps] done"

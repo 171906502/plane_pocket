@@ -1,0 +1,92 @@
+diff --git a/apps/space/app/issues/[anchor]/layout.tsx b/apps/space/app/issues/[anchor]/layout.tsx
+index 6dbc2e711..0f44bae8a 100644
+--- a/apps/space/app/issues/[anchor]/layout.tsx
++++ b/apps/space/app/issues/[anchor]/layout.tsx
+@@ -28,8 +28,11 @@ interface IssueMetadata {
+   cover_image?: string;
+ }
+ 
+-// Loader function runs on the server and fetches metadata
+-export async function loader({ params }: Route.LoaderArgs) {
++// Runs in the browser: space is built as an SPA (ssr: false), so react-router
++// rejects a plain `loader`. Behaviour is unchanged for users -- the metadata is
++// still fetched and fed to `meta()` after hydration. What is lost is the
++// server-rendered HTML, so link-preview crawlers no longer see OG tags.
++export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+   const { anchor } = params;
+ 
+   // Validate anchor before using in request (only allow alphanumeric, -, _)
+diff --git a/apps/space/app/page.tsx b/apps/space/app/page.tsx
+index 02a9a5649..7a8f711a5 100644
+--- a/apps/space/app/page.tsx
++++ b/apps/space/app/page.tsx
+@@ -15,11 +15,10 @@ import { LogoSpinner } from "@/components/common/logo-spinner";
+ import { AuthView } from "@/components/views";
+ // hooks
+ import { useUser } from "@/hooks/store/use-user";
+-import type { Route } from "./+types/page";
+ 
+-export const headers: Route.HeadersFunction = () => ({
+-  "X-Frame-Options": "SAMEORIGIN",
+-});
++// `X-Frame-Options: SAMEORIGIN` used to be exported here via `headers`, which
++// SPA mode rejects. It is now applied by the static host -- see
++// internal/router/static.go `spaceSecurityHeaders`.
+ 
+ const HomePage = observer(function HomePage() {
+   const { data: currentUser, isAuthenticated, isInitializing } = useUser();
+diff --git a/apps/space/app/root.tsx b/apps/space/app/root.tsx
+index fe504b1ed..777d876cd 100644
+--- a/apps/space/app/root.tsx
++++ b/apps/space/app/root.tsx
+@@ -43,12 +43,14 @@ export const links: Route.LinksFunction = () => [
+   },
+ ];
+ 
+-export const headers: Route.HeadersFunction = () => ({
+-  "Referrer-Policy": "origin-when-cross-origin",
+-  "X-Content-Type-Options": "nosniff",
+-  "X-DNS-Prefetch-Control": "on",
+-  "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+-});
++// Security headers used to be exported here via `headers`, but react-router's
++// SPA mode (ssr: false) rejects that export. They are now applied by the static
++// host -- see internal/router/static.go `spaceSecurityHeaders` for the Go side,
++// or add the same four headers to your nginx/caddy server block.
++//   Referrer-Policy: origin-when-cross-origin
++//   X-Content-Type-Options: nosniff
++//   X-DNS-Prefetch-Control: on
++//   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+ 
+ export function Layout({ children }: { children: React.ReactNode }) {
+   return (
+diff --git a/apps/space/react-router.config.ts b/apps/space/react-router.config.ts
+index fc806239b..7d6ef8966 100644
+--- a/apps/space/react-router.config.ts
++++ b/apps/space/react-router.config.ts
+@@ -3,6 +3,18 @@ import { joinUrlPath } from "@plane/utils";
+ 
+ const basePath = joinUrlPath(process.env.VITE_SPACE_BASE_PATH ?? "", "/") ?? "/";
+ 
++// SPA, so the whole app can be served as static files by the Go binary (or any
++// static host) with no Node process in production.
++//
++// This is not a free switch: react-router's SPA mode rejects two server-only
++// route exports, both of which had to be removed (2026-10-18):
++//   - `headers` in app/root.tsx and app/page.tsx  -> moved to the static host
++//     (see internal/router/static.go `spaceSecurityHeaders`)
++//   - `loader` in app/issues/[anchor]/layout.tsx  -> became `clientLoader`
++//
++// Trade-off: crawlers get an empty HTML shell, so link previews of shared
++// issues no longer carry server-rendered OG tags. Humans are unaffected --
++// the metadata is still fetched and applied after hydration.
+ export default {
+   appDirectory: "app",
+   basename: basePath,
+@@ -11,5 +23,5 @@ export default {
+     // are discovered mid-session, forcing a re-optimization + full page reload.
+     unstable_optimizeDeps: true,
+   },
+-  ssr: true,
++  ssr: false,
+ } satisfies Config;

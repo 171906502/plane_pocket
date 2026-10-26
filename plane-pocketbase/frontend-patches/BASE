@@ -1,0 +1,13 @@
+# Upstream commit this patch set is cut against.
+#
+# `plane-preview/` is a byte-identical checkout of this commit (minus the
+# `packages/i18n/locales` symlink, which Windows cannot create and which is
+# materialised as a real directory instead).
+#
+# Note it is NOT tag v1.4.2, even though the root package.json says 1.4.2 —
+# that version string has not been bumped on the `preview` branch. The content
+# was identified by blob-hash comparison, see docs/12-FRONTEND-DIFF.md §1.2.
+sha=e72bf10fa529d0764a671b19d0657fb244882811
+branch=preview
+date=2026-09-29
+subject=fix: accept numeric-string size on issue attachment upload (#9911)
