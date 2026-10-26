@@ -9,10 +9,13 @@
 # ----------------------------------------------------------------------------
 # 第三方只读依赖：禁止 Git 做任何行尾转换（-text = 不做 CRLF 归一化）
 #
-# 本机全局 core.autocrlf=true。若按上面的默认规则处理，一次 git checkout
-# 就会把 plane-preview 的 CRLF 文件改写成 LF —— pnpm-lock.yaml 有 14830 个 CR，
-# apps/web/package.json 有 87 个 —— 直接破坏「前端零改动 / 字节不变」这个
-# 项目的核心承诺。用 -text 彻底锁死：索引存原始字节，checkout 还原原始字节。
+# 本机全局 core.autocrlf=true。若不锁死，一次 `git checkout` 就会按平台的
+# eol 偏好改写这些文件，让「与上游逐字节一致」失效 —— 而 plane-preview 的
+# 全部价值就在于它能和 `makeplane/plane` 的同一提交做 `diff -r` 比对。
+#
+# 2026-10-26 起 plane-preview 已经是上游 `preview` 分支的纯净检出（LF），
+# 本地改动全部移到 `plane-pocketbase/frontend-patches/*.patch`，构建时打上、
+# 构建后还原。`-text` 保证索引与工作区永远是上游原始字节。
 #
 # 代价：这两个树内部的 git diff 会显示为二进制。但它们本就是只读参考代码，
 # 不需要逐行 diff，用「字节不变」换「可 diff」是划算的。

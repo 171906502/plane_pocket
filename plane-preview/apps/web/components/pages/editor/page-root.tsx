@@ -12,7 +12,6 @@ import { useTranslation } from "@plane/i18n";
 import type { TDocumentPayload, TPage, TPageVersion, TWebhookConnectionQueryParams } from "@plane/types";
 // hooks
 import { usePageFallback } from "@/hooks/use-page-fallback";
-import { useCollabDescriptionSync } from "@/hooks/use-collab-description-sync";
 import type { PageUpdateHandler, TCustomEventHandlers } from "@/hooks/use-realtime-page-events";
 import { usePagesPaneExtensions, useExtendedEditorProps } from "@/hooks/pages";
 import type { EPageStoreType } from "@/hooks/store";
@@ -81,19 +80,6 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
     page,
     collaborationState,
     updatePageDescription: handlers.updateDescription,
-  });
-
-  // Keep description_html/json in step with the collaborative document. The
-  // collaboration server relays yjs without decoding it, so it cannot derive
-  // HTML itself (see internal/live + docs/10-REMAINING-WORK.md §3.2). Space
-  // publishing and search read description_html, hence this write-back.
-  useCollabDescriptionSync({
-    editorRef,
-    pageId: page.id,
-    initialHtml: page.description_html,
-    updatePageDescription: handlers.updateDescription,
-    isEditorReady: editorReady,
-    isSynced: collaborationState?.isServerSynced ?? false,
   });
 
   const handleEditorReady = useCallback(

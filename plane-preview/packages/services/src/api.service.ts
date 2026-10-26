@@ -32,26 +32,6 @@ export abstract class APIService {
         if (config.url) {
           config.url = normalizeAPIRequestURL(config.url, this.baseURL);
         }
-
-        // Plane's Django client sends the readable csrftoken cookie back as
-        // X-CSRFTOKEN on unsafe API requests. Keep the same browser contract
-        // for the PocketBase compatibility backend. Guard document access so
-        // SSR requests remain unaffected.
-        if (typeof document !== "undefined" && config.method && !["get", "head", "options"].includes(config.method.toLowerCase())) {
-          const csrf = document.cookie
-            .split(";")
-            .map((part) => part.trim())
-            .find((part) => part.startsWith("csrftoken="))
-            ?.slice("csrftoken=".length);
-          if (csrf) {
-            const value = decodeURIComponent(csrf);
-            if (typeof config.headers?.set === "function") {
-              config.headers.set("X-CSRFTOKEN", value);
-            } else if (!config.headers["X-CSRFTOKEN"]) {
-              config.headers["X-CSRFTOKEN"] = value;
-            }
-          }
-        }
       } catch (error) {
         // Never block a request because of slash normalization — fall back to the
         // original URL and let the call proceed.

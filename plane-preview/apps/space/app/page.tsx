@@ -15,10 +15,11 @@ import { LogoSpinner } from "@/components/common/logo-spinner";
 import { AuthView } from "@/components/views";
 // hooks
 import { useUser } from "@/hooks/store/use-user";
+import type { Route } from "./+types/page";
 
-// `X-Frame-Options: SAMEORIGIN` used to be exported here via `headers`, which
-// SPA mode rejects. It is now applied by the static host -- see
-// internal/router/static.go `spaceSecurityHeaders`.
+export const headers: Route.HeadersFunction = () => ({
+  "X-Frame-Options": "SAMEORIGIN",
+});
 
 const HomePage = observer(function HomePage() {
   const { data: currentUser, isAuthenticated, isInitializing } = useUser();

@@ -29,19 +29,6 @@ export abstract class APIService {
         if (config.url) {
           config.url = normalizeAPIRequestURL(config.url, this.baseURL);
         }
-
-        if (typeof document !== "undefined" && config.method && !["get", "head", "options"].includes(config.method.toLowerCase())) {
-          const csrf = document.cookie
-            .split(";")
-            .map((part) => part.trim())
-            .find((part) => part.startsWith("csrftoken="))
-            ?.slice("csrftoken=".length);
-          if (csrf) {
-            const value = decodeURIComponent(csrf);
-            if (typeof config.headers?.set === "function") config.headers.set("X-CSRFTOKEN", value);
-            else config.headers["X-CSRFTOKEN"] = value;
-          }
-        }
       } catch (error) {
         // Never block a request because of slash normalization — fall back to the
         // original URL and let the call proceed.
