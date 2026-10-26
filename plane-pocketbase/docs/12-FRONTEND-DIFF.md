@@ -24,7 +24,7 @@
 | 4 | `apps/admin/vite.config.ts` | 同上 | 环境 | **已外置** → 同上 |
 | 5 | `apps/space/vite.config.ts` | 同上 | 环境 | **已外置** → 同上 |
 | 6 | `apps/space/package.json` | `start/preview` 改 `serve -s` | 环境 | **已外置** → 我们不用该 app 的 `pnpm start`（Go 托管静态文件），已还原上游 |
-| 7 | `packages/tailwind-config/index.css` | `@import "tailwindcss"` → `"tailwindcss/index.css"` | 构建硬修复 | **必需**：回退后 `ENOENT … apps/web/tailwindcss`（Vite 8 postcss-import 不解析 exports） |
+| 7 | `packages/tailwind-config/index.css` | `@import "tailwindcss"` → `"tailwindcss/index.css"` | 构建硬修复 | **必需**：回退后 `ENOENT … apps/web/tailwindcss`。根因是 Vite 8 的 **SSR 环境兼容解析器**不认 `exports` 的 `style` 条件（§1.1），**上游同样会踩**，与我们的安装方式无关 |
 | 8 | `apps/space/react-router.config.ts` | `ssr: true→false` | 单端口 SPA 化 | **必需**：静态托管的前提 |
 | 9 | `apps/space/app/root.tsx` | 删 `headers` 导出 | 单端口 SPA 化 | **必需**：`SPA Mode: invalid route export(s) … headers` |
 | 10 | `apps/space/app/page.tsx` | 删 `headers` 导出 | 单端口 SPA 化 | **必需**：同上 |
@@ -70,6 +70,62 @@ cd plane-pocketbase && bash tests/browser/build-frontends.sh
 ```
 
 **结论：树内 7 个文件**（7–13）。其中 5 个是“静态托管 + 构建兼容”的硬约束，2 个是协作回写。
+
+### 1.1 7 号到底是谁的 bug（2026-10-26 定位，可复现）
+
+结论先说：**是 Vite 8.0.16 的 bug，上游用同样的版本跑同样的命令一样会失败**，不是我们的安装方式
+（hoisted）造成的，也不是 Tailwind 的问题。
+
+证据链，四条：
+
+**① 失败的解析器是 Vite 内置的 postcss-import，不是 Tailwind 的插件。**
+
+```
+[plugin vite:css] apps/web/styles/globals.css?transform-only:undefined:NaN
+Error: [postcss] ENOENT: … open 'D:\…\apps\web\tailwindcss'
+    at loadImportContent (vite/dist/node/chunks/postcss-import.js:392:19)
+```
+
+Tailwind 自己的解析器处理裸 `tailwindcss` **完全正常**：直接拿 `@tailwindcss/postcss` 处理
+`@import "tailwindcss"` 与 `@import "tailwindcss/index.css"`，两者输出**逐字节相同**（140 824 B）。
+
+**② 同一份配置，client 环境能解析，ssr 环境不能。** 用 Vite 自己的 `createResolver`
+（即 `createCSSResolvers` 里 `css` 那个，options 与源码一致：`extensions:['.css']`、
+`mainFields:['style']`、`conditions:['style','production']`、`preferRelative:true`、`tryIndex:false`）
+对 `apps/web/*` 这个 importer 求值：
+
+| 环境 | `tailwindcss` | `tailwindcss/index.css` | `@makeplane/propel/styles` |
+|---|---|---|---|
+| client | `…/node_modules/tailwindcss/index.css` | 同左 | `…/propel/dist/styles/propel.css` |
+| **ssr** | **原样返回 `tailwindcss`（未解析）** | 正常 | 正常 |
+
+`react-router build` 即使在 `ssr: false` 下也会跑一遍 **ssr environment**（日志里
+`building ssr environment for production...`），于是这一遍必然失败。
+
+**③ 机制：ssr 那一遍的条件集合里没有 `style`（也没有 `import`/`require`）。**
+
+```jsonc
+// tailwindcss@4.1.17 package.json
+"exports": { ".": { "types": …, "style": "./index.css", "require": …, "import": … } }   // ← 没有 "default"
+```
+
+`. `里没有任何“无条件”分支，ssr 的条件集匹配不上 → 解析器返回 undefined →
+postcss-import 把它当相对路径 → `apps/web/tailwindcss` ENOENT。
+对照组 `@makeplane/propel/styles` 的值是**裸字符串** `"./dist/styles/propel.css"`，
+不依赖条件，所以两个环境都能解析——这也解释了为什么只有 tailwind 这一行炸。
+
+**④ 与安装布局无关（排除“是我们改成 hoisted 才坏的”）。**
+把 `tailwindcss` 整个复制进 `apps/web/node_modules/` 后重跑：client 那一路的解析结果变成了
+`apps/web/node_modules/tailwindcss/index.css`（说明 node_modules 查找没问题），
+**ssr 那一路仍然原样返回 `tailwindcss`，报错路径一字不变**。
+
+**所以改法与代价**：`@import "tailwindcss/index.css"` 与 `@import "tailwindcss"` 语义等价
+（后者靠 `style` 字段指向同一个文件），只绕开 ssr 那一遍的解析缺陷。1 行 + 注释，
+上游升级时只要不动第一行就不会冲突。
+
+**备选（都没采用）**：`pnpm patch vite` 改解析器（比改一行 CSS 重得多）、
+升级到修好这个 bug 的 Vite 版本（要动 lockfile，且未验证是否已修）、
+把 `tailwindcss` 的 `exports["."]` 加 `default`（那是改 node_modules，不可持续）。
 
 ---
 
