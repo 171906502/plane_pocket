@@ -7,37 +7,49 @@
 import { launch, WEB, shot, settle, mkLogger, writeNet } from "./lib.mjs";
 
 const log = mkLogger();
-const PAGE_ID = process.argv[2] || "wyxtjhhe469gk1l";
-const PROJECT_ID = process.argv[3] || "3gx5zov764djlq7";
+// ⚠️ Both path segments are Plane **UUIDs**, not PocketBase record ids.
+// `ResolveProject` looks the project up with `uuid = {:id}` (internal/middleware
+// /scope.go), so handing it the 15-char record id makes every project-scoped
+// call 404 and the page renders "Project not found" — which reads exactly like
+// a broken frontend build. Get the uuids from the database:
+//   sqlite3 .fe-run/data.db "select id, uuid, name from projects;"
+//   sqlite3 .fe-run/data.db "select id, uuid, name from pages;"
+const PAGE_ID = process.argv[2] || "32be4a84-eafb-429d-b875-e9e7abe8c8dd";
+const PROJECT_ID = process.argv[3] || "a0f56f55-c542-4fb0-913f-9d30d330f4e2";
 const URL = `${WEB}/hrms/projects/${PROJECT_ID}/pages/${PAGE_ID}/`;
 const MARKER = `WB-${Date.now().toString().slice(-6)}`;
 const EMAIL = process.env.PLANE_EMAIL || "admin@hrms.local";
 const PASSWORD = process.env.PLANE_PASSWORD || "Plane12345!";
 
-const editorLocator = (page) => page.locator(".ProseMirror").first();
 const anyEditable = (page) => page.locator('[contenteditable="true"]').first();
 
-async function countEditors(page) {
-  const pm = await page.locator(".ProseMirror").count().catch(() => 0);
-  const ce = await page.locator('[contenteditable="true"]').count().catch(() => 0);
-  return pm + ce;
-}
+// The persistent profile may still hold a session for a *different* account
+// (this database has two workspaces, each with its own user). Landing on the
+// page then yields "Project not found" instead of an editor, which looks like
+// a broken build. Always start from a clean cookie jar and sign in explicitly.
+async function freshLogin(ctx, page) {
+  await ctx.clearCookies();
+  log.log(`[auth] 清空 cookie，登录 ${EMAIL}`);
+  await page.goto(`${WEB}/`, { waitUntil: "domcontentloaded" });
+  await settle(page, 900, 20000);
 
-async function loginIfNeeded(page) {
-  if ((await page.locator("#email").count()) === 0) return false;
-  log.log("[auth] 未登录，执行登录");
-  await page.fill("#email", EMAIL);
-  await page
-    .getByRole("button", { name: /continue/i })
-    .click()
-    .catch(() => page.locator("button[type=submit]").first().click());
-  await page.waitForTimeout(2500);
-  if (await page.locator("#password").count()) {
-    await page.fill("#password", PASSWORD);
-    await page.locator("button[type=submit]").first().click().catch(() => {});
-    await page.waitForTimeout(6000);
+  if (await page.locator("#email").count()) {
+    await page.fill("#email", EMAIL);
+    await page
+      .getByRole("button", { name: /continue/i })
+      .click()
+      .catch(() => page.locator("button[type=submit]").first().click());
+    await page.waitForTimeout(2500);
+    if (await page.locator("#password").count()) {
+      await page.fill("#password", PASSWORD);
+      await page.locator("button[type=submit]").first().click().catch(() => {});
+      await page.waitForTimeout(6000);
+    }
+  } else {
+    log.log("[auth] 已在登录态");
   }
-  return true;
+  await settle(page, 900, 20000);
+  log.log(`[auth] 登录后 url=${page.url()}`);
 }
 
 log.log(`[url] ${URL}`);
@@ -46,16 +58,10 @@ log.log(`[marker] ${MARKER}`);
 const { ctx, page, net } = await launch();
 
 try {
+  await freshLogin(ctx, page);
+
   await page.goto(URL, { waitUntil: "domcontentloaded" });
   await settle(page, 900, 20000);
-
-  if ((await countEditors(page)) === 0) {
-    const logged = await loginIfNeeded(page);
-    if (logged) {
-      await page.goto(URL, { waitUntil: "domcontentloaded" });
-      await settle(page, 900, 20000);
-    }
-  }
 
   log.log(`[url after auth] ${page.url()}`);
 
