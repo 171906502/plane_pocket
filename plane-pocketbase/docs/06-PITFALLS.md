@@ -2079,6 +2079,42 @@ python tests/browser/audit-endpoints.py
 
 见 D-1。截图用来**给人看**"长什么样"，机器判定必须靠**接口级断言**。
 
+**推论（2026-10-28 踩了两次）**：既然截图不是判据，**截图失败就不许让步骤失败**。
+`lib.mjs` 的 `shot()` 原来是裸的 `page.screenshot()`，Windows 上杀软/索引器
+瞬时占用文件返回 `EPERM`，异常直接把整个 step 掀翻。
+
+后果比想象大得多 —— run1 里 `shot()` 正好夹在
+`name.fill("Wilber")` 和 `page.click("button[type=submit]")` **中间**：
+
+```
+A3-profile   !! EPERM 05-onboarding-profile-filled.png   ← 没点到 Continue
+A4-workspace !! page.fill Timeout 30000ms                ← 还停在资料页
+run2         !! B2/B3 超时                               ← 没有工作区
+run3         !! C1 "no project card anchor found"        ← 没有项目
+chain        ABORT: no project id
+```
+
+**一张写不进去的 PNG，报销了 5 个 run、30 个步骤。** 现在 `shot()` 重试 3 次
+（150/300ms 退避），仍失败就打印 `[shot] SKIPPED …` 并返回 `null`，绝不抛。
+修完之后同一条链路一次过：30 步 0 失败。
+
+**同类**：C-23（live 日志 open 的瞬时 `Access is denied`）。判据一样——
+文件是我们的、不是只读、ACL 正常，那就是外部短暂持有，重试即可。
+
+---
+
+### E-5 `--fresh` 的临时数据目录差点被提交
+
+`run-chain-single.sh --fresh` 用 `PLANE_DATA_DIR=.fe-run-chain-<时间戳>`。
+`plane-pocketbase/.gitignore` 里原有 `.fe-run/` 和 `.fe-run.*/`，
+**两个都不匹配** `.fe-run-chain-…`（前者要斜杠，后者要那个点），
+于是一次全量浏览器测试会在仓库里留下一个可提交的数据目录。
+已补 `.fe-run-*/`，判据：
+
+```bash
+git check-ignore -v plane-pocketbase/.fe-run-chain-20261028-222418
+```
+
 ---
 
 ### E-4 `page.evaluate` 没有超时，会卡死脚本
