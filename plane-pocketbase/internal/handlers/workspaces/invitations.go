@@ -50,21 +50,34 @@ func (h *Handler) Invitations(e *core.RequestEvent) error {
 		return h.createInvitations(e, scope, user)
 	}
 
-	perPage, cursor := serializers.ListParams(e, serializers.MaxPerPage)
-	envelope, err := serializers.Paginate(h.App, serializers.ListQuery{
-		Collection: "workspace_member_invites",
-		Filter:     "workspace = {:workspace} && deleted_at = ''",
-		Params:     dbx.Params{"workspace": scope.Workspace.Id},
-		Sort:       "-created_at",
-		PerPage:    perPage,
-		Cursor:     cursor,
-	}, func(r *core.Record) any {
-		return workspaceMemberInviteJSON(h.App, r)
-	})
+	// Django's `WorkspaceInvitationsViewset.list` returns a **bare array**, not a
+	// paginated envelope (`Response(serializer.data)` on a `many=True`
+	// serializer). The web client stores exactly what comes back:
+	//
+	//	// apps/web/store/member/workspace/workspace-member.store.ts
+	//	set(this.workspaceMemberInvitations, workspaceSlug, response);
+	//	// …then: this.workspaceMemberInvitations?.[slug]?.map(inv => inv.id)
+	//
+	// so an envelope makes `.map` throw `is not a function` during render and
+	// the whole /settings/members/ page lands on the error boundary. There is no
+	// pagination in this endpoint upstream either — the list is one workspace's
+	// pending invites, bounded by who an admin bothered to invite.
+	records, err := h.App.FindRecordsByFilter(
+		"workspace_member_invites",
+		"workspace = {:workspace} && deleted_at = ''",
+		"-created_at",
+		0,
+		0,
+		dbx.Params{"workspace": scope.Workspace.Id},
+	)
 	if err != nil {
 		return err
 	}
-	return e.JSON(http.StatusOK, envelope)
+	items := make([]any, 0, len(records))
+	for _, record := range records {
+		items = append(items, workspaceMemberInviteJSON(h.App, record))
+	}
+	return e.JSON(http.StatusOK, items)
 }
 
 // createInvitations handles POST /api/workspaces/{slug}/invitations/

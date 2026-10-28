@@ -1986,6 +1986,53 @@ sqlite3 .fe-run/data.db \
 
 ---
 
+### D-21 ⭐⭐⭐ 列表接口返回"信封"而不是裸数组，整页直接进错误边界
+
+**症状**：`/settings/members/` 白屏成 `🚧 Looks like something went wrong!`，
+控制台里真正的原因被压缩包埋着：
+
+```
+TypeError: this.workspaceMemberInvitations?.[e]?.map is not a function
+    at get workspaceMemberInvitationIds (store-context-….js)
+React Router caught the following error during render
+```
+
+**根因**：前端把这个接口的响应**原样**塞进 store，之后当数组用：
+
+```ts
+// apps/web/store/member/workspace/workspace-member.store.ts
+set(this.workspaceMemberInvitations, workspaceSlug, response);
+// …渲染时
+return this.workspaceMemberInvitations?.[workspaceSlug]?.map((inv) => inv.id);
+```
+
+我们这边用了通用的 `serializers.Paginate(...)`，返回的是**信封对象**
+（`{results, total_count, next_cursor, …}`）。`.map` 立刻炸，
+`workspaceMemberInvitationIds` 是 mobx computed，渲染期抛错 → 整页错误边界。
+
+Django 的 `WorkspaceInvitationsViewset.list` 返回的是 `Response(serializer.data)`，
+也就是**裸数组**。所以这一条要以「上游返回什么形状」为准，不能以「我们有现成的分页器」为准。
+
+**判据**：`curl` 一下看第一个字符是 `[` 还是 `{`。
+
+```bash
+curl -s …/api/workspaces/hrms/invitations/ | head -c 1     # 必须是 [
+```
+
+**修法**：该端点改成 `FindRecordsByFilter` + 手工 `[]any`，不要套分页器。
+回归断言别写 `"total_count":3`——那等于把错误形状固化成契约
+（`wave2c_test.go` 原来就是这么写的，已改）。断言写成：
+
+```go
+want:    []string{`[{"`, `"invitee@example.com"`, `"invite_link"`},
+notWant: []string{`"total_count"`, `"next_cursor"`, `"results"`},
+```
+
+**同类风险**：凡是前端 `set(store, response)` 之后 `.map` / `.filter` / `[...response]`
+的列表接口，都必须裸数组。写处理器前先看 Django 那个 viewset 的 `list` 返回什么。
+
+---
+
 ## E 类 · 测试链路
 
 ### E-1 ⭐ 不要把"起服务"和"跑测试"分成两个工具调用
@@ -2178,6 +2225,7 @@ mv X "X.bak-$(date +%s)" && mkdir -p X
 | **补丁说 applied 但构建报无关错（`Skipped patch` + 退出 0）** | **C-22**（`--directory` + 反向 `--check` 自证） |
 | **编辑器报 "Connection lost"，刷新有时又好** | **C-23**（先看服务端 `[live] open room … Access is denied`） |
 | **点 `+ Add sticky` 完全没反应** | **D-20**（上游去重；最新一条 sticky 是空的） |
+| **`/settings/members/` 白屏 "Something went wrong"** | **D-21**（列表接口返回信封，前端 `.map` 炸） |
 | **代码全在 D:，C: 可用空间却一直在降** | **C-16**（pnpm store / 日志 / 安装器残留都在用户目录） |
 | `%TEMP%` 里出现 3 GB 的随机名目录 | **C-16**（VS/VS Code 安装器残留，装完可删） |
 | `.workbuddy-ai\logs` 一天涨 1 GB | **C-16**（沙箱审计日志，按天分目录，不自动清理） |

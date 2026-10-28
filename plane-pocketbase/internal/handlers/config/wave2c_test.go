@@ -187,10 +187,15 @@ func TestAgentCWave2(t *testing.T) {
 		token: ownerToken, wantStatus: http.StatusOK,
 		want: []string{`"workspace_details"`, `"slug":"hrms"`, `"project_details"`, `"identifier":"P"`},
 	})
+	// Django's WorkspaceInvitationsViewset.list returns a bare array. The web
+	// client stores the response verbatim and then calls `.map()` on it, so an
+	// envelope here crashes /settings/members/ into the error boundary
+	// (`this.workspaceMemberInvitations?.[slug]?.map is not a function`).
 	run(t, mux, tc{
-		name: "workspace invitations list is non-empty", method: http.MethodGet, url: "/api/workspaces/hrms/invitations/",
+		name: "workspace invitations list is a bare array, not an envelope", method: http.MethodGet, url: "/api/workspaces/hrms/invitations/",
 		token: ownerToken, wantStatus: http.StatusOK,
-		want: []string{`"total_count":3`, `"invitee@example.com"`, `"invite_link"`},
+		want:    []string{`[{"`, `"invitee@example.com"`, `"invite_link"`},
+		notWant: []string{`"total_count"`, `"next_cursor"`, `"results"`},
 	})
 	run(t, mux, tc{
 		name: "invitation join GET is public and omits the token", method: http.MethodGet,
