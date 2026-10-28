@@ -90,11 +90,27 @@ export function mkLogger(name) {
   return api;
 }
 
+// Screenshots are *evidence*, never a verdict (E-3). A step must not fail
+// because a PNG could not be written: on this machine Windows hands back EPERM
+// when antivirus / the search indexer has the file open for a moment, which
+// happened twice in one chain run (05-onboarding-profile-filled.png,
+// 09-workspace-home-loaded.png) and aborted steps that had actually succeeded.
+// Retry briefly, then degrade to a warning line.
 export async function shot(page, name, note) {
   const file = path.join(SHOTS, `${name}.png`);
-  await page.screenshot({ path: file, fullPage: false });
-  console.log(`  [shot] ${name}.png${note ? "  (" + note + ")" : ""}`);
-  return file;
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await page.waitForTimeout(150 * attempt);
+    try {
+      await page.screenshot({ path: file, fullPage: false });
+      console.log(`  [shot] ${name}.png${note ? "  (" + note + ")" : ""}`);
+      return file;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  console.log(`  [shot] SKIPPED ${name}.png — ${String(lastError?.message ?? lastError).split("\n")[0]}`);
+  return null;
 }
 
 /** Wait until the page stops mutating for `quiet` ms, or `max` elapses. */

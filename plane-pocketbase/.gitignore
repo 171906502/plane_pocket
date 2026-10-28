@@ -1,6 +1,10 @@
 # PocketBase runtime database and preserved run snapshots
 .fe-run/
 .fe-run.*/
+# `run-chain-single.sh --fresh` scratch instances (`.fe-run-chain-<ts>`). Neither
+# pattern above matches these: `.fe-run/` needs the slash, `.fe-run.*/` needs the
+# dot — so without this line a full browser run leaves a committable data dir.
+.fe-run-*/
 .evidence-*/
 *.db
 *.db-shm
