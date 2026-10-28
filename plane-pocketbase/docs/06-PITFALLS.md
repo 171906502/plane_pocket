@@ -1984,6 +1984,25 @@ sqlite3 .fe-run/data.db \
 最后一行长度为 0 → 就是这个情况。**往那张 `Click to type here` 卡里打字**即可，
 再点 `+ Add sticky` 才会新建。
 
+**完整实测链路**（浏览器驱动，证据齐全，别再靠猜）：
+
+| 步骤 | 观测 |
+|---|---|
+| 打开 Stickies 面板 | `GET /api/workspaces/hrms/stickies/…` 200，5 张卡，**第 1 张空白** |
+| 点 `+ Add sticky` | **没有任何请求**，只有左下角 warning toast |
+| 点空白卡并打字 | `PATCH /api/workspaces/hrms/stickies/<uuid>/` **200**，`description_stripped` 落库 |
+| 填完再点 `+ Add sticky` | `POST /api/workspaces/hrms/stickies/` **201**，卡数 5→6，新空白卡在最左 |
+
+也就是说：**那张空白卡就是"上一次新建的便签"**，不是占位符。整个流程没有 bug，
+只是"新建 → 卡片是空的 → 看起来像没建成 → 再点被拦"这个循环。
+
+**排查这类"按钮无反应"的第一条**：在 Network 面板看**有没有发出请求**。
+没有请求 = 前端自己拦掉了（本条的 `return`），有请求才是后端问题。
+
+> 附带的坑：用 `page.evaluate(fetch(...))` 手工调不安全方法（DELETE/PATCH/POST）时，
+> 少 `X-CSRFTOKEN` 会被中间件直接 **403**，很容易误判成"接口没实现"。取值：
+> `document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/)`，见补丁 0004。
+
 ---
 
 ### D-21 ⭐⭐⭐ 列表接口返回"信封"而不是裸数组，整页直接进错误边界
