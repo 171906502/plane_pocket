@@ -3203,3 +3203,93 @@
 200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/states/
 200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/pages/32be4a84-eafb-429d-b875-e9e7abe8c8dd/?track_visit=true
 200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/pages/
+
+===== collab-writeback  (2026-10-28T13:22:20.911Z) =====
+-- FAILED REQUESTS --
+401  GET    /api/users/me/
+
+-- MUTATIONS --
+200  POST   /auth/email-check/
+302  POST   /auth/sign-in/
+200  PATCH  /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/pages/32be4a84-eafb-429d-b875-e9e7abe8c8dd/description/
+200  PATCH  /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/pages/32be4a84-eafb-429d-b875-e9e7abe8c8dd/
+200  PATCH  /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/pages/32be4a84-eafb-429d-b875-e9e7abe8c8dd/description/
+
+-- API READS (deduped, query strings kept) --
+200  GET    /api/instances/
+401  GET    /api/users/me/
+200  GET    /api/users/me/
+200  GET    /api/users/me/settings/
+200  GET    /api/users/me/profile/
+200  GET    /api/users/me/workspaces/
+200  GET    /api/workspaces/hrms/states/
+200  GET    /api/users/me/workspaces/hrms/project-roles/
+200  GET    /api/workspaces/hrms/members/
+200  GET    /api/workspaces/hrms/sidebar-preferences/
+200  GET    /api/workspaces/hrms/projects/
+200  GET    /api/workspaces/hrms/workspace-members/me/
+200  GET    /api/workspaces/hrms/user-properties/
+200  GET    /api/workspaces/hrms/home-preferences/
+200  GET    /api/workspaces/hrms/users/notifications/unread/
+200  GET    /api/workspaces/hrms/user-favorites/?all=true
+200  GET    /api/workspaces/hrms/quick-links/
+200  GET    /api/workspaces/hrms/stickies/?cursor=30:0:0&per_page=30&query=
+200  GET    /api/workspaces/hrms/recent-visits/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/members/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/issue-labels/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/project-members/me/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/user-properties/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/cycles/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/estimates/
+200  GET    /api/workspaces/hrms/modules/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/intake-state/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/views/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/modules/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/states/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/pages/32be4a84-eafb-429d-b875-e9e7abe8c8dd/?track_visit=true
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/pages/
+
+===== collab-writeback  (2026-10-28T13:23:20.325Z) =====
+-- FAILED REQUESTS --
+401  GET    /api/users/me/
+
+-- MUTATIONS --
+200  POST   /auth/email-check/
+302  POST   /auth/sign-in/
+200  PATCH  /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/pages/32be4a84-eafb-429d-b875-e9e7abe8c8dd/description/
+
+-- API READS (deduped, query strings kept) --
+200  GET    /api/instances/
+401  GET    /api/users/me/
+200  GET    /api/users/me/
+200  GET    /api/users/me/settings/
+200  GET    /api/users/me/profile/
+200  GET    /api/users/me/workspaces/
+200  GET    /api/users/me/workspaces/hrms/project-roles/
+200  GET    /api/workspaces/hrms/members/
+200  GET    /api/workspaces/hrms/workspace-members/me/
+200  GET    /api/workspaces/hrms/sidebar-preferences/
+200  GET    /api/workspaces/hrms/user-properties/
+200  GET    /api/workspaces/hrms/projects/
+200  GET    /api/workspaces/hrms/states/
+200  GET    /api/workspaces/hrms/home-preferences/
+200  GET    /api/workspaces/hrms/users/notifications/unread/
+200  GET    /api/workspaces/hrms/user-favorites/?all=true
+200  GET    /api/workspaces/hrms/quick-links/
+200  GET    /api/workspaces/hrms/stickies/?cursor=30:0:0&per_page=30&query=
+200  GET    /api/workspaces/hrms/recent-visits/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/issue-labels/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/members/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/project-members/me/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/user-properties/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/
+200  GET    /api/workspaces/hrms/modules/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/cycles/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/estimates/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/views/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/modules/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/intake-state/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/states/
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/pages/32be4a84-eafb-429d-b875-e9e7abe8c8dd/?track_visit=true
+200  GET    /api/workspaces/hrms/projects/a0f56f55-c542-4fb0-913f-9d30d330f4e2/pages/

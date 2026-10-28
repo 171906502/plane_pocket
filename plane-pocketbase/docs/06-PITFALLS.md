@@ -1435,6 +1435,40 @@ revert 之后做对称的正向 `--check`。这条断言才是上面两个坑的
 
 ---
 
+### C-23 ⭐⭐ 编辑器显示 "Connection lost"，其实是 live 日志文件被外部短暂占用
+
+**症状**：打开 Pages 里的某篇文档，编辑器顶部报 `Connection lost`（中文界面是"连接已断开"），
+内容能显示但协作不工作；刷新几次后有时自己好了。
+
+**服务端日志**（唯一线索，必须看服务端）：
+
+```
+[live] open room "60a3fdfb-…": open …\.fe-run\live\60a3fdfb-…-889a4443.log: Access is denied.
+```
+
+**因果链**：`Hub.room()` 打不开日志 → `handler.go` 直接 `c.close()` 关掉 WS →
+前端只能报 "Connection lost"。**一个瞬时的文件占用 = 用户掉线一次**。
+
+**为什么是"瞬时"**：同一个文件一分钟前打不开、一分钟后 `os.OpenFile` 正常；
+ACL 与另一个能正常写入的日志文件**完全一致**（`Authenticated Users: Modify`），
+也不是只读属性。这是 Windows 上典型的**短暂独占持有者**：杀软实时扫描、
+搜索索引器、备份代理——它们会以不带 `FILE_SHARE_WRITE` 的方式打开文件一小会儿。
+本次触发点很典型：那个日志自 10-24 起就没被碰过，第一次打开正好撞上扫描。
+
+**修法**（`internal/live/store.go` `openLogFile`）：对
+`ERROR_SHARING_VIOLATION(32)` / `ERROR_ACCESS_DENIED(5)` 重试 5 次、退避 100/200/300/400ms，
+其它错误立刻上报。平台判定在 `openfile_windows.go` / `openfile_other.go` 里分叉
+（Unix 没有强制锁，不重试）。
+
+> 注意：`syscall` 包**没有**导出 `ERROR_SHARING_VIOLATION`（只有
+> `golang.org/x/sys/windows` 有，而它在这里是 indirect 依赖），所以用
+> `syscall.Errno(32)` 并写注释，不要为这一个常量加直接依赖。
+
+**判据**：前端报 "Connection lost" 时，**先看服务端日志有没有 `[live] open room … Access is denied`**。
+有 → 文件层问题，不是 WS 升级、不是鉴权、不是前端产物。
+
+---
+
 ## D 类 · 前端契约
 
 ### D-1 ⭐⭐ 前端会把失败渲染成「看起来正常」的状态
@@ -1921,6 +1955,37 @@ L-3 恢复页面版本时两个连在一起的坑：
 
 ---
 
+### D-20 ⭐⭐ "+ Add sticky 点了没反应" 是上游自带的去重，不是坏了
+
+**症状**：首页点 `+ Add sticky`，界面上什么都没发生，既没有新卡片也没有报错。
+
+**真相**（`apps/web/components/stickies/sticky/use-operations.tsx:61-79`，上游代码）：
+创建前会检查**最新一条 sticky**，只要它的 `description_html` 为空（或
+`isCommentEmpty`），就直接 `return`，只弹一个 `type: "warning"` 的 toast：
+
+```
+Sticky not created
+There already exists a sticky with no description
+```
+
+两个让人误判的因素：
+
+1. toast 在**左下角**，视线在右上角的按钮上，基本看不到；
+2. 那条"已存在"的空便签渲染成 `Click to type here` 的浅色占位卡，**看起来像空态**，
+   不像"已经有一条记录"。
+
+**判据**（不用看界面）：
+
+```bash
+sqlite3 .fe-run/data.db \
+  "select id, length(description_stripped), created_at from stickies order by created_at;"
+```
+
+最后一行长度为 0 → 就是这个情况。**往那张 `Click to type here` 卡里打字**即可，
+再点 `+ Add sticky` 才会新建。
+
+---
+
 ## E 类 · 测试链路
 
 ### E-1 ⭐ 不要把"起服务"和"跑测试"分成两个工具调用
@@ -2111,6 +2176,8 @@ mv X "X.bak-$(date +%s)" && mkdir -p X
 | **`pnpm run` 先重装整个 workspace / turbo 卡住 20 分钟零产出** | **C-14b 第 3 条**（别用包管理器跑构建脚本，用 `build-packages.mjs`） |
 | **`node <node_modules/.bin/xxx>` 报 `SyntaxError: Invalid or unexpected token`** | **C-14b 尾注**（那是 `/bin/sh` shim，要 `.cmd` 或直接执行） |
 | **补丁说 applied 但构建报无关错（`Skipped patch` + 退出 0）** | **C-22**（`--directory` + 反向 `--check` 自证） |
+| **编辑器报 "Connection lost"，刷新有时又好** | **C-23**（先看服务端 `[live] open room … Access is denied`） |
+| **点 `+ Add sticky` 完全没反应** | **D-20**（上游去重；最新一条 sticky 是空的） |
 | **代码全在 D:，C: 可用空间却一直在降** | **C-16**（pnpm store / 日志 / 安装器残留都在用户目录） |
 | `%TEMP%` 里出现 3 GB 的随机名目录 | **C-16**（VS/VS Code 安装器残留，装完可删） |
 | `.workbuddy-ai\logs` 一天涨 1 GB | **C-16**（沙箱审计日志，按天分目录，不自动清理） |

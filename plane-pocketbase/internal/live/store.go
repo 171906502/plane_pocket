@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 // maxLogSize is a soft ceiling. Updates are appended, never merged in place
@@ -36,6 +37,40 @@ type docLog struct {
 	warned bool
 }
 
+// openLogFile opens the append-only log, retrying briefly when the OS refuses
+// the first attempt for a reason that clears on its own.
+//
+// Why this exists: on Windows, opening a log that had not been touched for days
+// once failed with `Access is denied` four times in a row (21:34:13, :16, :20,
+// 21:35:01), each failure closing the socket and surfacing as "Connection lost"
+// in the editor. The file was neither read-only nor held by another handle a
+// minute later, which is the signature of a transient holder — antivirus
+// real-time scan, the search indexer, or a backup agent. Those hold the file
+// without FILE_SHARE_WRITE for a moment, and Go reports it as
+// ERROR_SHARING_VIOLATION or ERROR_ACCESS_DENIED.
+//
+// A room that cannot open its log is fatal to the connection (handler.go), so
+// one transient lock costs the user a full reconnect. 5 attempts over ~1s costs
+// nothing when the open succeeds on the first try.
+func openLogFile(path string) (*os.File, error) {
+	const attempts = 5
+	var err error
+	for attempt := 0; attempt < attempts; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * 100 * time.Millisecond)
+		}
+		var file *os.File
+		file, err = os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+		if err == nil {
+			return file, nil
+		}
+		if !transientOpenError(err) {
+			return nil, err
+		}
+	}
+	return nil, err
+}
+
 // openDocLog opens (creating if needed) the log for a document and returns its
 // existing records.
 func openDocLog(dir, documentName string) (*docLog, [][]byte, error) {
@@ -43,7 +78,7 @@ func openDocLog(dir, documentName string) (*docLog, [][]byte, error) {
 		return nil, nil, fmt.Errorf("create live dir: %w", err)
 	}
 	path := filepath.Join(dir, safeFileName(documentName)+".log")
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+	file, err := openLogFile(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open %s: %w", path, err)
 	}
@@ -125,7 +160,7 @@ func (l *docLog) replace(records [][]byte) (int64, error) {
 // reopen (re)opens the underlying file for appending. Callers hold l.mu, except
 // after a failed replace where the handle was already dropped.
 func (l *docLog) reopen() error {
-	file, err := os.OpenFile(l.path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+	file, err := openLogFile(l.path)
 	if err != nil {
 		return fmt.Errorf("reopen %s: %w", l.path, err)
 	}
