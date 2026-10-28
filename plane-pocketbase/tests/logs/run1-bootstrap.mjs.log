@@ -94,14 +94,14 @@ url=http://localhost:8000/hrms/
     <a> A
     <a> Personalize now
     <button> Add quick Link
-    <button type=button id=base-ui-_r_39_> All
+    <button type=button id=base-ui-_r_38_> All
     <button type=button> 
     <button> Add sticky
 
-===== run1-bootstrap  (2026-10-25T02:53:25.277Z) =====
+===== run1-bootstrap  (2026-10-28T14:26:25.618Z) =====
 -- FAILED REQUESTS --
-403  GET    /api/instances/admins/
 403  GET    /api/instances/admins/me/
+403  GET    /api/instances/admins/
 
 -- MUTATIONS --
 302  POST   /api/instances/admins/sign-up/
@@ -114,31 +114,31 @@ url=http://localhost:8000/hrms/
 200  PATCH  /api/users/me/onboard/
 
 -- API READS (deduped, query strings kept) --
+403  GET    /api/instances/admins/me/
 200  GET    /api/instances/
 403  GET    /api/instances/admins/
-403  GET    /api/instances/admins/me/
 200  GET    /api/instances/admins/me/
 200  GET    /api/instances/admins/
 200  GET    /api/users/me/
-200  GET    /api/users/me/settings/
 200  GET    /api/users/me/workspaces/
+200  GET    /api/users/me/settings/
 200  GET    /api/users/me/profile/
 200  GET    /api/users/me/workspaces/invitations/
 200  GET    /api/workspace-slug-check/?slug=hrms
-200  GET    /api/users/me/settings/?t=1792896793222
-200  GET    /api/workspaces/hrms/projects/
-200  GET    /api/workspaces/hrms/members/
+200  GET    /api/users/me/settings/?t=1793197573547
 200  GET    /api/workspaces/hrms/workspace-members/me/
-200  GET    /api/workspaces/hrms/sidebar-preferences/
-200  GET    /api/workspaces/hrms/states/
 200  GET    /api/users/me/workspaces/hrms/project-roles/
-200  GET    /api/workspaces/hrms/user-properties/
-200  GET    /api/workspaces/hrms/users/notifications/unread/
+200  GET    /api/workspaces/hrms/projects/
+200  GET    /api/workspaces/hrms/states/
 200  GET    /api/workspaces/hrms/user-favorites/?all=true
+200  GET    /api/workspaces/hrms/sidebar-preferences/
+200  GET    /api/workspaces/hrms/user-properties/
+200  GET    /api/workspaces/hrms/members/
+200  GET    /api/workspaces/hrms/users/notifications/unread/
 200  GET    /api/workspaces/hrms/home-preferences/
 200  GET    /api/workspaces/hrms/quick-links/
-200  GET    /api/workspaces/hrms/stickies/?cursor=30:0:0&per_page=30&query=
 200  GET    /api/workspaces/hrms/recent-visits/
+200  GET    /api/workspaces/hrms/stickies/?cursor=30:0:0&per_page=30&query=
 
 
 FINAL_URL=http://localhost:8000/hrms/
